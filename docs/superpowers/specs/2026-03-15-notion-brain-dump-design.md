@@ -47,7 +47,7 @@ All entries live in a single Notion database with 4 levels of nesting:
 
 ## Notion Database
 
-**Name:** Brain Dump
+**Name:** Brain Dump Entries
 
 **Sub-items:** Enabled (allows parent-child row nesting for tree view)
 

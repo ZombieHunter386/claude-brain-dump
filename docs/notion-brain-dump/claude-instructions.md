@@ -6,7 +6,6 @@ Read this file at the start of any session where the user wants to capture or re
 
 **Name:** Brain Dump Entries
 **Notion Database ID:** 4239eb81-babc-4751-bd05-41039420c264
-**Parent Page ID:** 32588694-d77c-8060-8574-f92ed2d54c50
 
 ## MCP Tools
 
