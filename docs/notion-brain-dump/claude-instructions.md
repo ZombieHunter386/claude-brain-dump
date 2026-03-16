@@ -26,16 +26,23 @@ Use ONLY these — `create-a-data-source` and `update-a-data-source` are broken 
 
 ### Mobile / Claude Web (remote Notion connector)
 
-These tools are available when the Notion connector is enabled via claude.ai → Settings → Connectors. Confirm exact names by asking Claude "what Notion tools do you have?" in a session with the connector active — then update this table.
+These tools are available when the Notion connector is enabled via claude.ai → Settings → Connectors.
 
 | Action | Tool |
 |---|---|
-| Create an entry (Thought, Idea, Task, Sub-task) | *(confirm from live connector)* |
-| Query / search entries | *(confirm from live connector)* |
-| Retrieve a specific entry | *(confirm from live connector)* |
-| Update an existing entry | *(confirm from live connector)* |
-| Delete an entry | *(confirm from live connector)* |
-| Get database schema | *(confirm from live connector)* |
+| Create an entry (Thought, Idea, Task, Sub-task) | `notion-create-pages` |
+| Search / scan for existing Thoughts | `notion-search` |
+| Retrieve a specific entry by ID or URL | `notion-fetch` |
+| Update an existing entry | `notion-update-page` |
+| Delete an entry | *(not available — archive via `notion-update-page` instead)* |
+| Get database schema | `notion-fetch` with the database ID |
+
+**Key differences from local MCP:**
+
+- **No property-filter query.** `notion-search` does not support filtering by `Level = Thought`. Instead, search with keywords and the `data_source_url` set to the Brain Dump database URL to restrict results to that database.
+- **No delete.** Use `notion-update-page` with `command: update_properties` to set `Status` to a tombstone value, or leave test entries as-is.
+- **Creating entries.** `notion-create-pages` takes `parent: { database_id: "4239eb81-babc-4751-bd05-41039420c264" }` and a `properties` map. Include `Parent item` in properties for non-Thought entries (relation to parent page ID).
+- **Content field.** Page body content can be passed as Notion-flavored Markdown in the `content` field — use this for richer Details formatting if needed.
 
 **To connect:** Open claude.ai → Settings → Connectors → find Notion → Connect (OAuth). Syncs to mobile automatically. Enable per-conversation via **+** → Connectors → toggle Notion on.
 
