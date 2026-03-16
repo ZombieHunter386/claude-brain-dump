@@ -39,7 +39,7 @@ When the user sends a brain dump (voice or text):
 
 1. **Parse** — extract meaning and sub-components. If nothing classifiable, ask them to rephrase. Do NOT create blank entries.
 2. **Classify** — assign Level and Area to each component. If it spans multiple Areas (e.g., "fix Compass intake flow AND redesign my personal site"), split into separate Thoughts — one per Area — and confirm both.
-3. **Scan for existing Thoughts** — call `mcp__notion__API-query-data-source` on database `4239eb81-babc-4751-bd05-41039420c264` with filter `Level = Thought`. Compare the new entry's title and content against existing Thought titles and Summaries for keyword or concept overlap.
+3. **Scan for existing Thoughts** — call `mcp__notion__API-query-data-source` on database `4239eb81-babc-4751-bd05-41039420c264` with filter `Level = Thought`. If that returns errors, fall back to `mcp__notion__API-post-search` with relevant keywords. Compare results against existing Thought titles and Summaries for keyword or concept overlap.
 4. **Route:**
    - **Clear match** (keyword/concept overlap with one existing Thought) → attach at the appropriate level beneath it; confirm to user afterward: "Added *X* as an Idea under *Y*"
    - **Ambiguous match** (two or more plausible parent Thoughts) → ask user which parent before writing: "This could go under *Y* or *Z* — which fits better?"
