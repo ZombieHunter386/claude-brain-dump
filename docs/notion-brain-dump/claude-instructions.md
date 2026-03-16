@@ -9,7 +9,11 @@ Read this file at the start of any session where the user wants to capture or re
 
 ## MCP Tools
 
-Use ONLY these Notion MCP tools — `create-a-data-source` and `update-a-data-source` are broken and will always fail:
+The correct tool names depend on where Claude is running. Check which tools are available in your session and use the matching column.
+
+### Desktop / Claude Code (local MCP server)
+
+Use ONLY these — `create-a-data-source` and `update-a-data-source` are broken and will always fail:
 
 | Action | Tool |
 |---|---|
@@ -19,6 +23,21 @@ Use ONLY these Notion MCP tools — `create-a-data-source` and `update-a-data-so
 | Update an existing entry | `mcp__notion__API-patch-page` |
 | Delete an entry | `mcp__notion__API-delete-a-block` |
 | Get database schema | `mcp__notion__API-retrieve-a-database` |
+
+### Mobile / Claude Web (remote Notion connector)
+
+These tools are available when the Notion connector is enabled via claude.ai → Settings → Connectors. Confirm exact names by asking Claude "what Notion tools do you have?" in a session with the connector active — then update this table.
+
+| Action | Tool |
+|---|---|
+| Create an entry (Thought, Idea, Task, Sub-task) | *(confirm from live connector)* |
+| Query / search entries | *(confirm from live connector)* |
+| Retrieve a specific entry | *(confirm from live connector)* |
+| Update an existing entry | *(confirm from live connector)* |
+| Delete an entry | *(confirm from live connector)* |
+| Get database schema | *(confirm from live connector)* |
+
+**To connect:** Open claude.ai → Settings → Connectors → find Notion → Connect (OAuth). Syncs to mobile automatically. Enable per-conversation via **+** → Connectors → toggle Notion on.
 
 ## Hierarchy
 
@@ -39,13 +58,13 @@ When the user sends a brain dump (voice or text):
 
 1. **Parse** — extract meaning and sub-components. If nothing classifiable, ask them to rephrase. Do NOT create blank entries.
 2. **Classify** — assign Level and Area to each component. If it spans multiple Areas (e.g., "fix Compass intake flow AND redesign my personal site"), split into separate Thoughts — one per Area — and confirm both.
-3. **Scan for existing Thoughts** — call `mcp__notion__API-query-data-source` on database `4239eb81-babc-4751-bd05-41039420c264` with filter `Level = Thought`. If that returns errors, fall back to `mcp__notion__API-post-search` with relevant keywords. Compare results against existing Thought titles and Summaries for keyword or concept overlap.
+3. **Scan for existing Thoughts** — use the query/search tool for database `4239eb81-babc-4751-bd05-41039420c264` with filter `Level = Thought` (see MCP Tools section for correct tool name per environment). If that returns errors, fall back to a search with relevant keywords. Compare results against existing Thought titles and Summaries for keyword or concept overlap.
 4. **Route:**
    - **Clear match** (keyword/concept overlap with one existing Thought) → attach at the appropriate level beneath it; confirm to user afterward: "Added *X* as an Idea under *Y*"
    - **Ambiguous match** (two or more plausible parent Thoughts) → ask user which parent before writing: "This could go under *Y* or *Z* — which fits better?"
    - **No match** → create a new top-level Thought (with nested Ideas/Tasks if enough detail was provided)
    - **Merge opportunity** (new Thought content significantly overlaps an existing standalone Thought) → offer to merge before writing: "This seems related to *[existing Thought]* — want me to combine them?"
-5. **Write** — use `mcp__notion__API-post-page`. Set Area on EVERY row created (Thought and all children). Set "Parent item" relation for all non-Thought entries.
+5. **Write** — use the create-page tool (see MCP Tools section). Set Area on EVERY row created (Thought and all children). Set "Parent item" relation for all non-Thought entries.
 6. **Confirm** — tell user exactly what was saved and where.
 
 ## Creating an Entry — Property Format
@@ -93,7 +112,7 @@ Every entry needs all of these:
 ## Retrieval
 
 When user asks to see or pull entries:
-- Call `mcp__notion__API-query-data-source` with relevant filters (Area, Level, Status, or keyword search)
+- Use the query/search tool (see MCP Tools section for correct name per environment) with relevant filters (Area, Level, Status, or keyword search)
 - Present results as a tree (Thought → Ideas → Tasks → Sub-tasks)
 - For "build X" requests: fetch the full hierarchy for that Thought and present it ready for implementation planning (then invoke the writing-plans skill)
 
