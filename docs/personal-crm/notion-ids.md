@@ -17,10 +17,17 @@ _Reference file for all Notion IDs used across CRM automation plans._
 - **ID:** (fill after Task 9)
 - **Name:** My Job Target Profile
 
-## Views (fill during Tasks 3–8)
-- **All Contacts:** [view-id]
-- **Follow-up Queue:** [view-id]
-- **Birthdays:** [view-id]
-- **By Industry:** [view-id]
-- **Recent Events:** [view-id]
-- **Job Search:** [view-id]
+## Views
+- **All Contacts:** view://32788694-d77c-8165-9e95-000c868e0567
+- **Follow-up Queue:** view://32788694-d77c-8142-b1e8-000c721366ef
+- **Birthdays:** view://32788694-d77c-8171-846a-000c5bb7061a
+- **By Industry:** view://32788694-d77c-81d7-a983-000c403b9887
+- **Recent Events:** view://32788694-d77c-8116-ba95-000cdd79c06d
+- **Job Search:** view://32788694-d77c-814f-b3de-000c994113f3
+
+## Manual Setup Required
+### Follow-up Queue view filter
+Open the "Follow-up Queue" view in Notion UI and add this filter group:
+- OR group 1: Follow-up Frequency = "Monthly" AND Last Contacted < 30 days ago
+- OR group 2: Follow-up Frequency = "Quarterly" AND Last Contacted < 90 days ago
+- OR group 3: Follow-up Frequency = "Annually" AND Last Contacted < 365 days ago
