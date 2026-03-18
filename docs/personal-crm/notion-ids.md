@@ -28,7 +28,7 @@ _Reference file for all Notion IDs used across CRM automation plans._
 
 ## Manual Setup Required
 ### Follow-up Queue view filter
-Open the "Follow-up Queue" view in Notion UI and add this filter group:
-- OR group 1: Follow-up Frequency = "Monthly" AND Last Contacted < 30 days ago
-- OR group 2: Follow-up Frequency = "Quarterly" AND Last Contacted < 90 days ago
-- OR group 3: Follow-up Frequency = "Annually" AND Last Contacted < 365 days ago
+Open the "Follow-up Queue" view in Notion UI and add a single filter:
+- `Is Overdue` is `Checked`
+
+The "Is Overdue" formula property handles all threshold logic automatically (30/90/365 days based on Follow-up Frequency).
