@@ -14,7 +14,8 @@ _Reference file for all Notion IDs used across CRM automation plans._
 - **Name:** Professional Contacts
 
 ## Job Target Profile Page
-- **ID:** (fill after Task 9)
+- **ID:** 32788694-d77c-81c4-98e2-cc5734a79d09
+- **URL:** https://www.notion.so/32788694d77c81c498e2cc5734a79d09
 - **Name:** My Job Target Profile
 
 ## Views
