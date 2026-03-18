@@ -40,10 +40,11 @@ A public-facing web app that visualizes Chicago fire incident data to make a dat
 - Used as authoritative source for the sprinkler effectiveness argument since Chicago-specific sprinkler data requires FOIA
 
 ### Chicago / Illinois Public Sources — Static Data
-- **Traffic fatalities:** CDOT annual report
-- **Homelessness/housing-related deaths:** IDPH or Cook County Medical Examiner data
-- **Fire fatalities:** CFD annual report
-- Used for comparative deaths "reframing the risk" section
+- **Traffic fatalities:** CDOT annual report (specific figure: CDOT publishes annual traffic fatality counts for Chicago)
+- **Unsheltered/homelessness-related deaths:** Chicago DFSS (Dept of Family & Support Services) Annual Homeless Point-in-Time Count report, which includes deaths among unsheltered individuals. Use "deaths among persons experiencing homelessness" — a defined count, not a derived estimate. Alternatively, Cook County Medical Examiner annual report, filtering for "exposure/environmental" and "undetermined" causes with no fixed address. Nail down the exact source and year before implementation; do not use an estimated or methodologically derived number.
+- **Fire fatalities:** CFD Annual Report (published by Chicago Fire Dept, available on city website)
+- All three figures must be from the same year for a valid comparison. Use the most recent year where all three are available.
+- Used for the Hero stat cards and Section 6 comparative chart
 
 ### FOIA Requests (Future Enrichment — not blocking v1)
 - CFD sprinkler permit database by address — will replace NFPA data with Chicago-specific data when available
@@ -59,22 +60,22 @@ Single scrollable page with sticky navigation. Narrative arc builds the advocacy
 
 ### Section 1: Hero
 - **Headline:** Bold, advocacy-forward (e.g., "Chicago's Fire Rules Are Costing Lives — Just Not the Ones You Think")
-- **3 stat cards:** Annual deaths in Chicago from (a) fires, (b) traffic, (c) housing unaffordability/homelessness
-- **Purpose:** Immediately reframes the risk conversation before any fire data is shown
+- **3 stat cards:** Annual deaths in Chicago from (a) fires, (b) traffic, (c) homelessness/unsheltered deaths — all from the same year, all static hardcoded values with source citations shown inline
+- **Purpose:** Comparative deaths reframing is the first thing a visitor sees, before any fire data
 
 ### Section 2: The Map
 - Interactive map of Chicago fire incidents (2022–present)
-- Markers colored by severity (fatality / injury / property damage only)
-- Overlay toggle: building violations density
-- **Filter controls:**
-  - Year range slider
-  - Ward selector (dropdown) — so an alderman can filter to their own ward
-  - Incident type
+- **Marker severity coloring:** Derived from the `incident_type_desc` or equivalent field in the CFD dataset. Three buckets: `fatality` (red) = incident type includes "fatal" or "death"; `injury` (orange) = incident type includes "injury"; `property-only` (yellow) = all others. Exact field name and values to be confirmed against live dataset schema before implementation.
+- **Ward filter:** Chicago ward boundaries GeoJSON is available from the Chicago Data Portal (`/Facilities-Geographic-Boundaries/Ward-Offices/`). Perform a client-side point-in-polygon join (use `@turf/boolean-point-in-polygon` from the Turf.js library) to assign each incident to a ward at load time. Ward selector dropdown lists wards 1–50.
+- **Data volume / performance:** Fetch incidents from Socrata API with a `$limit=5000` cap and `$order=date DESC` to get the most recent incidents. Use React-Leaflet's `MarkerCluster` plugin to cluster markers at low zoom levels. Fire station locations and ward boundary GeoJSON are fetched separately.
+- Overlay toggle: building violations density (heatmap layer, violations fetched with same address-level approach)
+- **Filter controls:** Year range slider, ward selector (dropdown), incident type
 - **Purpose:** Geographic grounding; ward filter makes it personal in aldermanic meetings
 
 ### Section 3: Building Violations & Fire Risk
-- Bar chart: fire incident rate by violation history (buildings with prior violations vs. clean record)
-- Possibly a scatter plot: violation count vs. fire incidents at address level
+- Bar chart: fire incident count at addresses with prior violations vs. addresses with no violation history
+- **Address join strategy:** Normalize all addresses to uppercase, strip unit numbers, standardize directionals (N/S/E/W), and abbreviate street types (ST/AVE/BLVD) before joining. Use a dedicated `normalizeAddress()` utility in `lib/utils.ts`. Match on normalized address string. Accept that some joins will fail; note match rate in a dev comment.
+- Scatter plot (optional, secondary): violation count vs. fire incident count per address
 - **Purpose:** Shows that building maintenance and code compliance — not stairwell count — predicts fire risk
 
 ### Section 4: Sprinklers Save Lives
@@ -84,14 +85,17 @@ Single scrollable page with sticky navigation. Narrative arc builds the advocacy
 - **Purpose:** Core argument — sprinkler presence is the variable that matters, not stairwell count
 
 ### Section 5: New vs. Old Buildings
-- Chart combining NFPA sprinkler data + Chicago building permit dates
-- Frame: "A new sprinklered building with one stairwell is safer than an old unsprinklered building with two"
-- Show fire outcomes by building era (pre-1970s vs. post-2000s construction permitted)
-- **Purpose:** Directly addresses the "but two stairs are safer" objection
+- **Source: NFPA national data only** (not joined with Chicago permit data — that join is not data-feasible since Chicago incident data lacks per-building outcome fields)
+- Grouped bar chart using NFPA data: compare fire outcomes (deaths/1000 fires, injuries/1000 fires, avg property damage) for (a) older unsprinklered buildings vs. (b) newer sprinklered buildings, using NFPA era/construction-type breakdowns
+- Headline framing: "A new building with one stairwell and sprinklers is safer than an old building with two stairs and no sprinklers"
+- Include a callout box with the explicit caveat: "National data — Chicago-specific building-era breakdown requires FOIA (in progress)"
+- Chicago building permit data is NOT used in this section for v1
+- **Purpose:** Directly addresses the "but two stairs are safer" objection using authoritative national data
 
 ### Section 6: The Real Risk — Putting Fire in Context
-- Horizontal bar chart (or bold stat blocks): annual deaths in Chicago from fires vs. traffic vs. homelessness/housing unaffordability
-- Sub-note on housing cost context: how single-stair allowance enables more housing units
+- Horizontal bar chart: annual deaths in Chicago from (a) fires, (b) traffic, (c) homelessness/unsheltered — same static data as Hero stat cards, displayed as a chart for visual comparison
+- Sub-note on housing cost context: how single-stair allowance enables more housing units per lot
+- **Note:** Hero (Section 1) and this section both show comparative deaths; Hero shows the numbers first as a hook, Section 6 shows the full chart as the climactic argument. This is intentional — not duplication.
 - **Purpose:** Closes the argument — we're trading many lives lost to housing unaffordability to prevent far fewer fire deaths
 
 ### Section 7: The Ask
@@ -131,10 +135,11 @@ lib/
 
 ## Data Flow
 
-- **Map data:** Fetched client-side from Chicago Socrata API on page load (incidents + violations), with loading states
-- **Chart data:** Mix of static (NFPA, comparative deaths) and Socrata API fetches
-- **No backend:** All data comes directly from public APIs or is hardcoded from published reports
-- **Future:** When FOIA data arrives, replace NFPA static constants with Chicago-specific fetched data
+- **Map data:** Fetched client-side from Chicago Socrata API on page load. Capped at `$limit=5000` with `$order=date DESC` to control volume. Marker clustering via React-Leaflet MarkerCluster. Ward boundary GeoJSON fetched separately from Chicago Data Portal for point-in-polygon ward assignment (Turf.js).
+- **Chart data (Sections 3 violations):** Fetched client-side from Socrata API; address-normalized before join.
+- **Chart data (Sections 4, 5, 6, Hero):** Static — hardcoded constants in `nfpaData.ts` and `comparativeDeathsData.ts`. No API calls.
+- **No backend:** All data comes directly from public APIs or is hardcoded from published reports.
+- **Future:** When FOIA data arrives, replace static NFPA constants with Chicago-specific fetched data.
 
 ---
 
@@ -160,8 +165,8 @@ lib/
 
 - An alderman can filter the map to their ward in under 10 seconds
 - The sprinkler argument is clear and citable (NFPA source shown)
-- The comparative deaths section is the first thing a visitor sees
-- The site loads in under 3 seconds on a typical connection
+- Comparative deaths stat cards are visible in the Hero (first section) — the visitor sees the reframing before any fire map
+- The site loads in under 3 seconds on a typical connection (enforced by 5,000-row map cap and static chart data)
 - Deployable and publicly accessible via Vercel with a custom URL
 
 ---
