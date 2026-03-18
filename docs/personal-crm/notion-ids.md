@@ -26,6 +26,20 @@ _Reference file for all Notion IDs used across CRM automation plans._
 - **Recent Events:** view://32788694-d77c-8116-ba95-000cdd79c06d
 - **Job Search:** view://32788694-d77c-814f-b3de-000c994113f3
 
+## CRM Refresh Log Page
+- **ID:** 32788694-d77c-81b6-bc21-eb5d6321abf6
+- **Name:** CRM Refresh Log
+- **Purpose:** Append-only log of quarterly refresh runs; each run adds a dated section
+
+## Scheduled Tasks
+- **Quarterly Refresh Task ID:** crm-quarterly-refresh
+- **Schedule:** `0 9 1 */3 *` (9 AM on the 1st of Jan / Apr / Jul / Oct)
+- **Next Run:** 2026-06-01 09:00
+
+- **Weekly Follow-up Reminders Task ID:** crm-weekly-followup-reminders
+- **Schedule:** `0 8 * * 1` (8 AM every Monday)
+- **Next Run:** 2026-03-23 08:00
+
 ## Manual Setup Required
 ### Follow-up Queue view filter
 Open the "Follow-up Queue" view in Notion UI and add a single filter:
