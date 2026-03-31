@@ -41,7 +41,7 @@ At the end of the full analysis, Claude produces a **single consolidated report*
 
 ## The Consolidated Report
 
-The consolidated report is the final, shareable output produced after all four parts have been validated. It is a single formatted document intended to be copied, pasted, or exported — usable in a council presentation, a public meeting, or a citizen communication without further editing.
+The consolidated report is the final, shareable output produced after all four parts have been validated. It is a single formatted document intended to be copied, pasted, or exported — usable in a council presentation, a public meeting, or a citizen communication without further editing. The report is written in plain language throughout — technical data (tables, methodology, sources) is included but always accompanied by a clear explanation of what it means. There is one report, not separate technical and non-technical versions.
 
 ### Structure of the Consolidated Report
 
@@ -73,7 +73,7 @@ The headline numbers with full explanation. Includes:
 - The tax increase calculation with methodology shown
 
 **Assumptions & Limitations**
-A plain-language disclosure of every estimate, benchmark rate, and gap in the data. This section makes the analysis defensible: it shows the work and flags where numbers are data-derived vs. industry-standard estimates. Any estimates must include a link to the source from which they were derived.
+A plain-language disclosure of every estimate, benchmark rate, and gap in the data. This section makes the analysis defensible: it shows the work and flags where numbers are data-derived vs. industry-standard estimates. Any estimates must include a link to the source from which they were derived. Additionally, this section provides suggestions for further studies to better understand the maintenaince obligations presented. 
 
 ---
 
@@ -90,7 +90,9 @@ For each asset class (roads, water/sewer, bridges, parks & recreation facilities
 - Estimated age (derived from useful life and depreciation percentage). Claude should describe how it makes all estimates
 - Remaining useful life in years
 - Current replacement cost (net book value adjusted upward for construction cost inflation — typically 3–5% annually since original construction)
-- Condition rating: if a formal inspection report exists, use it; if not, use accumulated depreciation as a proxy (0–33% depreciated = Good, 34–66% = Fair, 67–100% = Poor)
+- Condition rating: if a formal inspection report exists (e.g., pavement condition index, facility condition assessment), use it. If not, use accumulated depreciation as a proxy (0–33% depreciated = Good, 34–66% = Fair, 67–100% = Poor) with the following guardrails:
+  - **Check for recent capital additions:** If the CAFR shows significant recent capital spending on an asset class (additions in the last 3–5 years), the condition may be better than the depreciation percentage implies — the old asset is heavily depreciated but newly added portions are not. Claude notes when recent additions likely improve actual condition beyond what the aggregate depreciation shows.
+  - **Flag where depreciation and reality are likely to diverge:** Depreciation is an accounting measure, not an engineering one. A road can be 40% depreciated on paper but physically failing due to poor subgrade, or 80% depreciated but still serviceable because it was over-engineered. Claude includes a caveat on every condition rating derived from depreciation: "This rating is based on accounting depreciation and may not reflect physical condition. A formal condition assessment would produce a more accurate rating."
 
 **Output — Part 1 Excel Table:**
 
@@ -132,6 +134,13 @@ These rates represent practitioner estimates widely used in municipal asset mana
 - Fleet & equipment: 10–15% per year (shorter useful life, high annual replacement need)
 
 If the CIP or budget documents contain actual unit cost data for specific asset classes, Claude uses those figures instead of the benchmark rates and notes where actual data replaced the estimate.
+
+**Enterprise fund separation:**
+Many municipalities operate water, sewer, and sometimes stormwater systems as **enterprise funds** — self-supporting operations with their own revenue streams (utility rates) separate from the general fund. When Claude identifies enterprise fund assets in the CAFR, it separates them throughout the analysis:
+- Enterprise fund obligations are shown in the maintenance gap table but clearly labeled as funded by utility rates, not property taxes
+- The "tax increase to break even" number in Part 4 excludes enterprise fund obligations — those would require a utility rate increase, not a property tax increase
+- If both a general fund gap and an enterprise fund gap exist, both are reported separately with their respective funding mechanisms
+- This prevents the report from inflating the property tax number with obligations that are (or should be) covered by a different revenue stream
 
 **Funding source accounting:**
 Claude identifies all state and federal pass-through revenues from the documents provided, maps each to the asset class it is designated for, and calculates net obligation. Common sources include:
@@ -237,7 +246,18 @@ This is calculated from the annual gap divided by current property tax revenue, 
 | **Deferred Maintenance Backlog** | $X | Anything > 0 signals underfunding | — |
 | **Tax Increase to Break Even** | X% | Context-dependent | — |
 
-**Plain-language version of Part 4 includes:**
+**Sensitivity analysis:**
+The headline gap number depends on assumptions — maintenance rates, inflation, deferred maintenance multipliers. To make the report defensible under scrutiny, Claude produces a simple sensitivity table showing what happens when key assumptions move:
+
+| Scenario | Maintenance Rate | Inflation | 30-Year Gap |
+|---|---|---|---|
+| Conservative (low estimate) | Low end of range | 2% | $X |
+| **Base case (report default)** | **Midpoint** | **3%** | **$X** |
+| Aggressive (high estimate) | High end of range | 4% | $X |
+
+This prevents the report from being dismissed over any single assumption. The framing is: *"Even under the most optimistic assumptions, the gap is $X. Under more realistic assumptions, it's $Y."*
+
+**Plain-language summary of Part 4 includes:**
 - A concrete household analogy calibrated to the actual numbers
 - A clear statement of what "doing nothing" costs at 10, 20, and 30 years
 - A one-paragraph statement suitable for reading aloud at a public meeting
