@@ -87,9 +87,9 @@ For each asset class (roads, water/sewer, bridges, parks & recreation facilities
 - Accumulated depreciation (from CAFR)
 - Net book value (original cost minus accumulated depreciation)
 - Estimated useful life (from CAFR notes — e.g., roads = 20–40 years)
-- Estimated age (derived from useful life and depreciation percentage). Claude should describe how it makes all estimates
+- Estimated age (derived from useful life and depreciation percentage). Claude first confirms the depreciation method from the CAFR notes — most municipalities use straight-line, but if the method is unclear or different, the age estimate is flagged as less reliable. Claude should describe how it makes all estimates
 - Remaining useful life in years
-- Current replacement cost (net book value adjusted upward for construction cost inflation — typically 3–5% annually since original construction)
+- Current replacement cost (**original cost** adjusted upward for construction cost inflation from date of acquisition to present, using 3% per year default or ENR CCI if available). Note: the inflation base is original cost, not net book value — net book value subtracts depreciation, which would systematically understate what it costs to replace the asset today. For example, a road built for $5M that is 80% depreciated has a net book value of $1M, but its replacement cost is closer to $8–10M in today's dollars.
 - Condition rating: if a formal inspection report exists (e.g., pavement condition index, facility condition assessment), use it. If not, use accumulated depreciation as a proxy (0–33% depreciated = Good, 34–66% = Fair, 67–100% = Poor) with the following guardrails:
   - **Check for recent capital additions:** If the CAFR shows significant recent capital spending on an asset class (additions in the last 3–5 years), the condition may be better than the depreciation percentage implies — the old asset is heavily depreciated but newly added portions are not. Claude notes when recent additions likely improve actual condition beyond what the aggregate depreciation shows.
   - **Flag where depreciation and reality are likely to diverge:** Depreciation is an accounting measure, not an engineering one. A road can be 40% depreciated on paper but physically failing due to poor subgrade, or 80% depreciated but still serviceable because it was over-engineered. Claude includes a caveat on every condition rating derived from depreciation: "This rating is based on accounting depreciation and may not reflect physical condition. A formal condition assessment would produce a more accurate rating."
@@ -135,8 +135,15 @@ These rates represent practitioner estimates widely used in municipal asset mana
 
 If the CIP or budget documents contain actual unit cost data for specific asset classes, Claude uses those figures instead of the benchmark rates and notes where actual data replaced the estimate.
 
+**When actual maintenance spending is unknown:**
+Many small cities cannot produce per-asset-class maintenance spending without a forensic audit of their public works budget. When this data is unavailable, Claude follows this hierarchy:
+1. **If a detailed operating budget is available:** Use the public works / streets / utilities operating expenditure lines as a proxy, clearly noting this includes non-maintenance costs (administration, personnel) and therefore overstates actual maintenance spending
+2. **If only a summary budget is available:** Use total public works operating expenditure as an upper bound for all asset classes combined, note this in the limitations, and calculate the gap using only the total (not per-asset-class)
+3. **If no maintenance spending data is available at all:** Leave the "Actual Spending" and "Annual Gap" columns as "Unknown — insufficient data" in the maintenance gap table, and calculate the 30-year gap in Part 4 using gross obligation vs. fiscal capacity only. The report notes that actual spending may partially offset the gap but cannot be verified from available documents
+Claude always asks the user whether they can obtain this data via FOIA before falling back to estimation.
+
 **Enterprise fund separation:**
-Many municipalities operate water, sewer, and sometimes stormwater systems as **enterprise funds** — self-supporting operations with their own revenue streams (utility rates) separate from the general fund. When Claude identifies enterprise fund assets in the CAFR, it separates them throughout the analysis:
+Many municipalities operate water, sewer, and sometimes stormwater systems as **enterprise funds** — self-supporting operations with their own revenue streams (utility rates) separate from the general fund. Claude identifies enterprise funds by checking the CAFR's fund structure section (typically in the first 10–15 pages or the table of contents), which lists governmental funds vs. proprietary/enterprise funds. The capital assets schedule sometimes lists assets by fund type; if it doesn't, Claude maps asset classes to their fund based on the fund structure. If the fund type for a specific asset class is ambiguous, Claude asks the user. When enterprise fund assets are identified, Claude separates them throughout the analysis:
 - Enterprise fund obligations are shown in the maintenance gap table but clearly labeled as funded by utility rates, not property taxes
 - The "tax increase to break even" number in Part 4 excludes enterprise fund obligations — those would require a utility rate increase, not a property tax increase
 - If both a general fund gap and an enterprise fund gap exist, both are reported separately with their respective funding mechanisms
@@ -170,7 +177,7 @@ The 30-year replacement schedule is the most complex output in the report. It is
 
 The model is structured as follows:
 - **Rows:** One row per asset class, plus a totals row, plus a "cumulative deferred backlog" row at the bottom
-- **Columns:** One column per year (Year 1 through Year 30), plus a "Total" column
+- **Columns:** In the conversation, the schedule is presented in **5-year summary buckets** (6 columns: Years 1–5, 6–10, 11–15, 16–20, 21–25, 26–30, plus a Total column) so the table renders legibly. Year-by-year detail for any 5-year window is available on request. When the user copies the table to Excel or Google Sheets, Claude can produce the full 30-column year-by-year version on request.
 - **Cell values:** The scheduled replacement cost for that asset class in that year, calculated from remaining useful life in Part 1. When an asset class hits the end of its useful life, its full replacement value appears in that year's cell.
 - **Annual maintenance row:** Below the replacement schedule, a row for annual maintenance obligation (from the gap table above) is added for each year, allowing the user to see the combined annual infrastructure cost (maintenance + scheduled replacement) for any given year
 - **Revenue row:** The city's projected annual infrastructure spending capacity (from Part 3) is shown as a comparison row
@@ -189,6 +196,10 @@ The cost multiplier varies by asset type and the evidence is strongest for roads
 
 **Default assumption:** Claude uses a **3x multiplier** for non-road assets (conservative) and a **5x multiplier** for roads (mid-range of the FHWA-documented range). Both are stated explicitly in the report with sources. If the user has reason to believe a different multiplier is more appropriate for their city, they can override it and Claude will restate the assumption.
 
+**Compounding methodology:** The deferred backlog is calculated as: cumulative underspending (sum of each year's maintenance gap) × the asset-specific multiplier, calculated once as a total liability. It is NOT compounded year-over-year (applying the multiplier repeatedly to a growing balance) — that would produce absurdly large numbers that undermine credibility. The multiplier represents the eventual cost of repair when deferred maintenance leads to asset failure, not an annual compounding rate.
+
+**Double-counting caveat:** The 30-year total obligation (Part 4) adds annual maintenance obligations to scheduled replacement costs. In practice, these partially overlap: maintenance spending is intended to *prevent* premature replacement, and underfunded maintenance accelerates replacement timelines. The deferred maintenance multiplier captures this relationship approximately, but the total should be understood as an upper-bound estimate. The report frames it as: *"If the city maintains its infrastructure on schedule AND replaces it at end of useful life, the total cost is $X. If maintenance is deferred, some replacement costs arrive sooner and cost more — captured by the deferred backlog estimate."*
+
 **Validation checkpoint:** User confirms the maintenance gap table and replacement schedule before Part 3.
 
 ---
@@ -198,11 +209,12 @@ The cost multiplier varies by asset type and the evidence is strongest for roads
 Claude reads the CAFR's revenue history, debt schedules, and tax base trend data to establish what the city can realistically spend on infrastructure over the next 30 years.
 
 **Analysis performed:**
-- **Revenue trend:** Last 5–10 years of total general fund revenue and any dedicated infrastructure fund revenue. Claude calculates the compound annual growth rate (CAGR) and projects forward using that rate — if the trend is flat or negative, this is flagged prominently.
+- **Revenue trend:** Last 5–10 years of total general fund revenue and any dedicated infrastructure fund revenue. Claude calculates the compound annual growth rate (CAGR) and projects forward using that rate — if the trend is flat or negative, this is flagged prominently. Projections assume no structural changes (no annexation, no major employer leaving or arriving, no reassessment) and longer projections carry increasing uncertainty — Claude notes this explicitly.
 - **Infrastructure spending share:** What percentage of the city's total spending has gone to infrastructure (maintenance + capital) historically. This is compared to the obligation calculated in Part 2.
 - **Existing debt load:** Total outstanding debt principal, annual debt service payments, and when existing debt retires. Debt service consumes revenue that cannot go to pay-as-you-go maintenance.
 - **Borrowing capacity:** Estimated remaining debt capacity (most states cap municipal debt as a percentage of assessed value). This is the city's ability to finance large capital projects.
 - **Dedicated infrastructure funds:** TIF districts, special service areas, water/sewer enterprise funds, and any other revenue streams legally restricted to infrastructure. These are separated from general fund capacity.
+- **Available for infrastructure:** This is calculated as total revenue minus total operating expenditures (personnel, administration, contractual services, commodities) minus debt service = residual available for infrastructure capital and maintenance. This is NOT revenue minus debt service alone — omitting operating expenditures would dramatically overstate the amount available. Claude uses the CAFR's expenditure summaries to determine operating costs and states the calculation explicitly.
 
 **Output — Part 3 Summary Table:**
 
@@ -236,7 +248,7 @@ What the deferred maintenance backlog becomes if the annual gap is left unaddres
 The single most politically legible metric:
 > *"To fully fund maintenance of [City]'s existing infrastructure — not one new project, just keeping what exists — property taxes would need to increase by X% starting today."*
 
-This is calculated from the annual gap divided by current property tax revenue, expressed as a percentage increase. Methodology is shown explicitly.
+This is calculated from the **average annual total gap** (maintenance + scheduled replacement, averaged over 30 years) divided by current property tax revenue, expressed as a percentage increase. The average annual total gap is used rather than just the maintenance gap because replacement costs are real obligations, and rather than a single year's gap because replacement costs are lumpy (a spike in year 8 doesn't mean taxes need to spike in year 8 — it means the city needs to be setting aside that amount annually). Enterprise fund obligations are excluded — those would require a utility rate increase, reported separately. Methodology is shown explicitly.
 
 **The three-number dashboard:**
 
@@ -249,11 +261,11 @@ This is calculated from the annual gap divided by current property tax revenue, 
 **Sensitivity analysis:**
 The headline gap number depends on assumptions — maintenance rates, inflation, deferred maintenance multipliers. To make the report defensible under scrutiny, Claude produces a simple sensitivity table showing what happens when key assumptions move:
 
-| Scenario | Maintenance Rate | Inflation | 30-Year Gap |
-|---|---|---|---|
-| Conservative (low estimate) | Low end of range | 2% | $X |
-| **Base case (report default)** | **Midpoint** | **3%** | **$X** |
-| Aggressive (high estimate) | High end of range | 4% | $X |
+| Scenario | Maintenance Rate | Inflation | Revenue Growth | 30-Year Gap |
+|---|---|---|---|---|
+| Conservative (low estimate) | Low end of range | 2% | High end of historical CAGR | $X |
+| **Base case (report default)** | **Midpoint** | **3%** | **Historical CAGR** | **$X** |
+| Aggressive (high estimate) | High end of range | 4% | Flat (0%) | $X |
 
 This prevents the report from being dismissed over any single assumption. The framing is: *"Even under the most optimistic assumptions, the gap is $X. Under more realistic assumptions, it's $Y."*
 
@@ -340,6 +352,37 @@ The limitations section of every report ends with: *"This analysis likely unders
 
 ---
 
+## Error Mitigation
+
+The following safeguards are built into the analysis process to catch errors before they reach the final report.
+
+### Arithmetic Verification
+Claude shows its work for every key calculation — not just the result but the formula and inputs. At each validation checkpoint, Claude presents a brief "calculation check" for the most consequential numbers: total replacement value, annual maintenance obligation, and the 30-year gap. If any number seems implausible (e.g., annual maintenance obligation exceeds total annual revenue), Claude flags it and asks the user to verify the source data before proceeding.
+
+### Source Tracing
+Every number in the report is tagged as one of three types:
+- **Extracted** — pulled directly from a specific document (cited by document name and page/section)
+- **Calculated** — derived from extracted numbers using a stated formula
+- **Estimated** — based on an industry benchmark or assumption (cited with source and stated rationale)
+
+This makes errors traceable. If the final gap number seems wrong, you can follow each input back to its source and find where the error entered.
+
+### Reasonableness Checks
+Before producing the consolidated report, Claude runs the following sanity checks and flags any that fail:
+- Total replacement value should fall within a reasonable range per capita (most US municipalities: $15,000–$60,000 per capita in infrastructure replacement value)
+- Annual maintenance obligation should be 2–5% of total replacement value (if it falls outside this range, an input is likely wrong)
+- The tax increase percentage should be checked against the city's current tax rate — an increase that would more than double the tax rate may indicate an error in inputs rather than an actual gap of that magnitude
+- Revenue projections at year 30 should not exceed 3x current revenue (if they do, the growth rate assumption is likely too aggressive)
+
+### Common Misreads from CAFRs
+Claude is specifically instructed to watch for these common errors when reading municipal financial documents:
+- **Governmental vs. business-type activities:** The CAFR's government-wide statements combine both, but the capital assets schedule often separates them. Claude must use the correct column — governmental activities for general fund assets, business-type for enterprise funds — not the combined total, which would double-count
+- **Capital assets vs. infrastructure assets:** Some CAFRs report "capital assets" (which includes land, equipment, and construction in progress) separately from "infrastructure" (roads, bridges, water systems). Claude should use infrastructure-specific line items when available, not total capital assets, which inflates the number with land (which doesn't depreciate or require maintenance)
+- **Construction in progress:** CIP line items on the capital assets schedule represent projects under construction, not completed infrastructure. These should be excluded from the replacement value and remaining useful life calculations until they are reclassified as completed assets
+- **Net pension and OPEB liabilities:** These appear on the government-wide statements and can dwarf infrastructure obligations. They are a separate fiscal issue and should not be included in the infrastructure analysis, but Claude should note their existence as context for the city's overall fiscal position
+
+---
+
 ## Out of Scope (v1)
 
 **New project evaluation (Part 5)** — evaluating proposed new infrastructure projects against the baseline gap is a natural v2. The value threshold metric (how much new assessed value a project must generate to cover its own maintenance obligation) will be designed after Parts 1–4 are proven in practice.
@@ -348,7 +391,7 @@ The limitations section of every report ends with: *"This analysis likely unders
 
 ## Success Criteria
 
-- A non-technical user (no financial background) can run the full analysis using publicly available documents in a single Claude conversation
+- A non-technical user (no financial background) can run the full analysis using publicly available documents, ideally in a single Claude conversation. If document volume exceeds context limits (large CAFRs + CIP + budget documents), the system prompt instructs Claude to summarize what has been established so far and provide a handoff summary the user can paste into a new conversation to continue seamlessly
 - The plain-language report can be read and understood by a city council member with no preparation
 - The "tax increase to break even" number is defensible, clearly sourced, and can withstand pushback
 - The consolidated report can be shared publicly and the methodology can be explained and defended
