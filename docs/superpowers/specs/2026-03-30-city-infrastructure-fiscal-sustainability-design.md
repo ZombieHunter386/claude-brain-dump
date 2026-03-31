@@ -49,11 +49,16 @@ The consolidated report is the final, shareable output produced after all four p
 - City name
 - Date of analysis
 - Three headline numbers (from Part 4): 30-year gap, maintenance coverage rate, tax increase to break even
-- A single red/yellow/green infrastructure health rating
-- One-paragraph plain-language summary of what the report found
+
+**Executive Summary**
+Plain-language summary of what the report found. Includes:
+- A 2–3 sentence description of the city's infrastructure portfolio and overall fiscal condition
+- The three headline numbers
+- The red/yellow/green rating with a one-sentence explanation
+- **A brief Key Data Limitations notice** — 3–5 bullet points flagging the most significant gaps or estimates in this specific analysis (e.g., "Stormwater infrastructure was not separately reported in the CAFR and is excluded from this analysis"; "Maintenance spending by asset class was estimated from total public works expenditures — a detailed breakdown was not available"). This notice is in plain language, not buried in a footnotes section, so any reader immediately understands the confidence level of the numbers they are looking at.
 
 **Section 1 — Infrastructure Inventory** *(from Part 1)*
-The full asset table. Two columns per row: the technical data (replacement value, useful life) and a plain-language annotation (e.g., "Roads are approximately halfway through their useful life — major reconstruction costs will begin accelerating within 10 years").
+The full asset excel table. After, a plain language summary of what the full asset excel table is showing. 
 
 **Section 2 — Maintenance Obligations & Funding Coverage** *(from Part 2)*
 The maintenance gap table by asset class, plus the 30-year replacement schedule (see Excel model description below), plus a written narrative explaining where state/federal funding applies, how much of the obligation it covers, and what is left unfunded.
@@ -68,16 +73,7 @@ The headline numbers with full explanation. Includes:
 - The tax increase calculation with methodology shown
 
 **Assumptions & Limitations**
-A plain-language disclosure of every estimate, benchmark rate, and gap in the data. This section makes the analysis defensible: it shows the work and flags where numbers are data-derived vs. industry-standard estimates.
-
-### Two Versions
-
-Both versions contain the same findings. The difference is tone and language:
-
-- **Technical version** — precise numbers, stated assumptions, benchmark sources cited (APWA, ASCE, GASB 34), methodology explained. Intended for city finance staff, auditors, or anyone who will scrutinize the numbers.
-- **Plain-language version** — same findings written for a council member or resident who will not read footnotes. Uses concrete analogies (e.g., "This is like owning a house and budgeting for only half the maintenance it needs — the house doesn't fall apart immediately, but every skipped year makes the eventual repair more expensive"). Avoids jargon. Every number is paired with what it means in practical terms.
-
-Claude produces both in the same response, clearly labeled.
+A plain-language disclosure of every estimate, benchmark rate, and gap in the data. This section makes the analysis defensible: it shows the work and flags where numbers are data-derived vs. industry-standard estimates. Any estimates must include a link to the source from which they were derived.
 
 ---
 
@@ -91,12 +87,12 @@ For each asset class (roads, water/sewer, bridges, parks & recreation facilities
 - Accumulated depreciation (from CAFR)
 - Net book value (original cost minus accumulated depreciation)
 - Estimated useful life (from CAFR notes — e.g., roads = 20–40 years)
-- Estimated age (derived from useful life and depreciation percentage)
+- Estimated age (derived from useful life and depreciation percentage). Claude should describe how it makes all estimates
 - Remaining useful life in years
 - Current replacement cost (net book value adjusted upward for construction cost inflation — typically 3–5% annually since original construction)
 - Condition rating: if a formal inspection report exists, use it; if not, use accumulated depreciation as a proxy (0–33% depreciated = Good, 34–66% = Fair, 67–100% = Poor)
 
-**Output — Part 1 Table:**
+**Output — Part 1 Excel Table:**
 
 | Asset Class | Original Cost | Accum. Depreciation | % Depreciated | Est. Remaining Life | Current Replacement Value | Condition |
 |---|---|---|---|---|---|---|
@@ -120,10 +116,13 @@ A written narrative accompanies the table, flagging which asset classes are ente
 
 ### Part 2: Annual Maintenance Obligation & Funding Coverage
 
-Using industry-standard maintenance rate benchmarks, Claude calculates what the city *should* be spending annually versus what it's actually spending, accounts for all dedicated funding sources, and builds the 30-year replacement schedule.
+Using industry-standard maintenance rate benchmarks which are cited, Claude calculates what the city *should* be spending annually versus what it's actually spending, accounts for all dedicated funding sources, and builds the 30-year replacement schedule.
 
-**Maintenance rate benchmarks by asset class** (source: APWA, ASCE infrastructure report cards):
-- Roads & streets: 2–4% of replacement value per year (Claude uses midpoint of available range and states assumption)
+**Maintenance rate benchmarks by asset class:**
+
+These rates represent practitioner estimates widely used in municipal asset management. They are not derived from a single authoritative table — no such universal standard exists — but are consistent with guidance from [APWA's asset management resources](https://www.apwa.net/My_Apwa/Resources/UserFiles/file/Utility/IntroductiontoAssetMgmt.pdf), the [ASCE 2025 Infrastructure Report Card](https://infrastructurereportcard.org/), and [AWWA's water system benchmarking program](https://www.awwa.org/programs/benchmarking/). Claude uses the midpoint of each range by default and explicitly states this assumption.
+
+- Roads & streets: 2–4% of replacement value per year
 - Water systems: 1–2% per year
 - Sewer systems: 1–2% per year
 - Stormwater: 1–2% per year
@@ -131,6 +130,8 @@ Using industry-standard maintenance rate benchmarks, Claude calculates what the 
 - Municipal buildings: 2–3% per year
 - Parks & recreation: 1–2% per year
 - Fleet & equipment: 10–15% per year (shorter useful life, high annual replacement need)
+
+If the CIP or budget documents contain actual unit cost data for specific asset classes, Claude uses those figures instead of the benchmark rates and notes where actual data replaced the estimate.
 
 **Funding source accounting:**
 Claude identifies all state and federal pass-through revenues from the documents provided, maps each to the asset class it is designated for, and calculates net obligation. Common sources include:
@@ -140,7 +141,7 @@ Claude identifies all state and federal pass-through revenues from the documents
 - Federal transportation grants (CMAQ, STP, TAP) → Roads/Bridges
 - State capital programs → Variable
 
-**Output — Part 2 Maintenance Gap Table:**
+**Output — Part 2 Maintenance Gap Excel Table:**
 
 | Asset Class | Gross Annual Obligation | State/Federal Funding | Net City Obligation | Actual Spending | Annual Gap |
 |---|---|---|---|---|---|
@@ -168,10 +169,16 @@ The model is structured as follows:
 
 This model allows the user to answer: *"In year 7, we have $X in scheduled road reconstruction plus $Y in annual maintenance across all assets. Our projected revenue covers $Z. The shortfall is $W."*
 
-The model uses two clearly stated assumptions that Claude discloses: (1) replacement costs are held constant in today's dollars unless an inflation rate is specified; (2) assets are replaced exactly at end of useful life, which is conservative — deferred replacement means higher costs.
+The model uses two clearly stated assumptions that Claude discloses: (1) replacement costs are inflated at **3% per year by default** (consistent with long-run construction cost inflation as tracked by the [ENR Construction Cost Index](https://www.enr.com/economics)); however, if the CIP or provided project data contains actual cost estimates for specific asset classes, Claude uses those figures instead and notes where actual data replaced the default rate; (2) assets are replaced exactly at end of useful life, which is conservative — deferred replacement means higher costs.
 
 **Deferred maintenance backlog:**
-If the city has been underspending on annual maintenance, Claude calculates the compounding backlog. For each year of underspending, the deferred amount is assumed to increase future replacement costs by a penalty factor (industry standard: 4–5x — a dollar of deferred maintenance typically costs $4–5 to fix later when it becomes structural failure rather than preventive maintenance). This produces the total deferred backlog figure.
+If the city has been underspending on annual maintenance, Claude calculates the compounding backlog. Deferred maintenance doesn't disappear — when preventive work is skipped, assets deteriorate faster and repairs become more expensive.
+
+The cost multiplier varies by asset type and the evidence is strongest for roads:
+- **Roads:** [FHWA's pavement preservation guidance](https://www.fhwa.dot.gov/preservation/) documents that every $1 spent on preventive pavement maintenance saves up to $6–$14 in future reconstruction costs, depending on when in the pavement life cycle the maintenance is applied. The [FHWA Pavement Preservation: Preserving Our Investment in Highways](https://highways.dot.gov/public-roads/januaryfebruary-2000/pavement-preservation-preserving-our-investment-highways) article states preventive treatments are 4–5x more cost-effective than waiting for reconstruction.
+- **Buildings and other assets:** A commonly cited figure in facilities management literature is a 4:1 ratio (James Piper, P.E., writing in [FacilitiesNet](https://www.facilitiesnet.com/maintenanceoperations/article/5-Hidden-Costs-of-Deferring-Maintenance--19388)), though this figure lacks a traceable primary source and should be treated as a practitioner estimate rather than a research finding.
+
+**Default assumption:** Claude uses a **3x multiplier** for non-road assets (conservative) and a **5x multiplier** for roads (mid-range of the FHWA-documented range). Both are stated explicitly in the report with sources. If the user has reason to believe a different multiplier is more appropriate for their city, they can override it and Claude will restate the assumption.
 
 **Validation checkpoint:** User confirms the maintenance gap table and replacement schedule before Part 3.
 
@@ -214,7 +221,7 @@ Total obligation (from the replacement schedule + annual maintenance from Part 2
 - Gap as a percentage of current annual revenue
 
 **The "doing nothing" cost:**
-What the deferred maintenance backlog becomes if the annual gap is left unaddressed, at the 4–5x penalty factor. Shown at 10, 20, and 30 years. This is often the most striking number in the report.
+What the deferred maintenance backlog becomes if the annual gap is left unaddressed, using the asset-specific multipliers defined in Part 2 (5x for roads per FHWA; 3x for other assets). Shown at 10, 20, and 30 years. This is often the most striking number in the report.
 
 **The tax increase number:**
 The single most politically legible metric:
@@ -226,14 +233,9 @@ This is calculated from the annual gap divided by current property tax revenue, 
 
 | Metric | Value | Benchmark | Rating |
 |---|---|---|---|
-| **Maintenance Coverage Rate** | X% | 90–100% = Healthy; 70–89% = Warning; <70% = Critical | 🔴/🟡/🟢 |
+| **Maintenance Coverage Rate** | X% | 90–100+% = Healthy; 70–89% = Warning; <70% Critical
 | **Deferred Maintenance Backlog** | $X | Anything > 0 signals underfunding | — |
 | **Tax Increase to Break Even** | X% | Context-dependent | — |
-
-**Red/Yellow/Green rating:**
-- 🟢 **Green:** Maintenance coverage rate above 90%, deferred backlog below 10% of total asset value, tax increase to break even below 5%
-- 🟡 **Yellow:** Coverage rate 70–89%, or deferred backlog 10–25% of asset value, or tax increase 5–15%
-- 🔴 **Red:** Coverage rate below 70%, or deferred backlog above 25% of asset value, or tax increase above 15%
 
 **Plain-language version of Part 4 includes:**
 - A concrete household analogy calibrated to the actual numbers
@@ -314,7 +316,7 @@ The tool produces a **fiscal order-of-magnitude analysis**, not an engineering a
 
 This is still enormously valuable. Most cities have never seen their total infrastructure obligations laid out this way at all. An order-of-magnitude estimate that surfaces a $40–60 million unfunded gap is more useful for public accountability than no analysis, even if a detailed engineering assessment would put the number at $48 million or $55 million.
 
-The limitations section of every report ends with: *"This analysis likely understates the true obligation. Underground utilities and stormwater infrastructure are the most commonly under-documented asset classes. A formal asset management study would produce a more precise figure."*
+The limitations section of every report ends with: *"This analysis likely understates the true obligation. Underground utilities and stormwater infrastructure are the most commonly under-documented asset classes. A formal asset management study would produce a more precise figure."* 
 
 ---
 
