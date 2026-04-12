@@ -1,7 +1,7 @@
 # Chicago Off-Market Multifamily Pipeline — System Design
 
-**Date:** 2026-04-09
-**Status:** Architecture, pipeline stages, data model, Review UI, outreach overview, and feedback loop overview complete. Three subsystem specs still required before coding — see Spec Suite table below.
+**Date:** 2026-04-09 (updated 2026-04-11)
+**Status:** Architecture, data model, Review UI, outreach overview, and feedback loop overview complete. Data sources spec complete. Scoring system defined (no separate spec needed). One subsystem spec still required before coding (outreach) — see Spec Suite table below.
 
 ---
 
@@ -11,22 +11,24 @@ This system requires multiple spec files before it is ready to hand off for impl
 
 | File | Status | What it covers |
 |---|---|---|
-| `2026-04-09-chicago-multifamily-pipeline-design.md` | **This file** — in progress | System architecture, pipeline stages, data model, UI layout, outreach flow, feedback loop |
-| `YYYY-MM-DD-pipeline-gates-design.md` | Not started — needs brainstorm session | Exact pre-filter criteria; Gate 1 financial viability formula, thresholds, and data fields; Gate 2 motivation signals, starting weights, and score tier cutoffs; adjacent consolidation logic |
-| `YYYY-MM-DD-pipeline-data-sources-design.md` | Not started — needs brainstorm session | Full list of free APIs by stage; Cook County Assessor API field mapping; Chicago Data Portal endpoints; rate limits and pagination handling; how new sources get added incrementally |
-| `YYYY-MM-DD-pipeline-outreach-design.md` | Not started — needs brainstorm session | Message templates per channel (mail, email); sequence timing and scheduling logic; Gmail API setup; Lob API setup and handwritten-style configuration; broker route workflow; how drafts are personalized per site |
+| `2026-04-09-chicago-multifamily-pipeline-design.md` | **This file** — complete | System architecture, pipeline stages, data model, UI layout, outreach flow, feedback loop |
+| `2026-04-11-pipeline-data-sources-design.md` | **Complete** | All data sources, API endpoints, field mappings, fetch architecture, historical analysis script, rate limits |
+| ~~`pipeline-scoring-design.md`~~ | **Not needed** — scoring system fully defined in master spec (Section 2) + data sources spec | Signals come from data sources; weights from historical analysis; scoring math is weighted sum with normalization |
+| `YYYY-MM-DD-pipeline-outreach-design.md` | Not started — needs brainstorm session | Message templates per channel (mail, email); sequence timing and scheduling logic; contact enrichment provider; outreach positioning; broker route workflow |
 
-**Coding should not begin until all four files exist and are approved.**
+**Coding should not begin until all specs exist and are approved.**
 
 ---
 
 ## Goals
 
-1. Automatically screen LP/Lakeview parcels through configurable gates with minimal manual input
-2. Understand why a site is good — explainable scores, not just a number
-3. Make outreach feel personal at scale — drafted messages, multi-channel, human approves before anything sends
-4. Iterate both gates based on response rate AND whether the deal penciled
-5. Laptop-first, local tool — no hosting required; SQLite file shareable by email with partner
+1. **Automate deal sourcing end-to-end** — screen LP/Lakeview parcels through configurable scoring, draft outreach, and surface qualified leads with minimal manual input. The pipeline does the work; you review and approve.
+2. **Surface both as-of-right and entitlement plays** — identify sites that work under current zoning AND sites that could be worth significantly more after rezoning. Both are valid deal types.
+3. **Understand why a site is good** — explainable scores, not just a number. Each site should show what it is today, what it could become, and why the owner might sell.
+4. **Qualify and hand off leads** — act as a deal-sourcing SDR: find, qualify, do first outreach as a prospective buyer, then introduce qualified leads to developer partner for closing.
+5. **Get smarter over time** — iterate scoring based on response rates and handoff outcomes. Wave notes capture qualitative learning; weight adjustments are manual and deliberate.
+6. **Build toward doing your own deals** — the pipeline trains you as much as it trains itself. Build pattern recognition for what makes a good Chicago multifamily site, working toward your own entitlement plays.
+7. **Laptop-first, portable** — no hosting required; SQLite file shareable by email with partner.
 
 ---
 
@@ -34,10 +36,12 @@ This system requires multiple spec files before it is ready to hand off for impl
 
 - **Tooling:** Python pipeline + Flask web UI + SQLite — single language, single portable file, no hosting
 - **Vibe coding:** Code will be rewritten by Claude as needed; reuse of existing CRE app is not a priority
-- **Gate parameters:** Exact signals and weights are TBD — to be defined in a future brainstorm session. Both gates are fully configurable via YAML; changing a signal may require a code change, changing a weight does not.
-- **Free databases only initially** — paid enrichment (BatchSkipTracing) only after both gates pass
+- **Scoring parameters:** Exact signals and weights are TBD — initial weights set by historical analysis script, then adjusted manually after outreach waves. Scoring is fully configurable via YAML; changing a weight = edit the file, adding a new signal = edit code + add entry.
+- **Free databases only for fetch** — paid enrichment only after scoring, for top-N parcels selected for outreach
 - **No Street View** — replaced with "Open in Google Maps" link; avoids Google API key dependency
-- **Geography is configurable** — defined as a polygon in YAML config; can be narrowed or expanded without code changes. Initial target: Lakeview + Lincoln Park (Chicago community areas 6 & 7)
+- **Geography is configurable** — defined as a street-bounded polygon in YAML config; can be narrowed or expanded without code changes. Initial target: Irving Park (N) to Fullerton (S) to Western (W) to Lake Michigan (E) — covers Lincoln Park, Lakeview, and portions of adjacent neighborhoods.
+- **Outreach positioning:** All outreach is from you as a prospective buyer/developer exploring opportunities — not representing a third party. No broker's license; stay on the right side of bird-dogging vs. brokerage.
+- **Data sources are pluggable** — the pipeline must make it easy to add, remove, or swap data sources without restructuring. All data pulled from any source is stored in SQLite regardless of whether it's currently used in scoring. Scoring references which stored fields to use via YAML config. This means you can pull data now, decide later whether it factors into scoring, and never lose anything you've already fetched.
 
 ---
 
@@ -47,68 +51,81 @@ Five layers, each with a single responsibility:
 
 ```
 CONFIG (YAML)
-  Geography polygon · gate thresholds · scoring weights · outreach templates
-  └─ Updated by approved Claude API suggestions after each outreach wave
+  Geography polygon · scoring weights · zoning lookup · outreach templates
+  └─ Initial weights from historical analysis, adjusted manually after each wave
         ↓
 PIPELINE (Python scripts — run on demand)
-  Pre-filter → Gate 1 → Gate 2 → Enrichment
-  └─ Writes results to SQLite at each stage
+  Fetch → Consolidate → Analyze → Score → Enrich
+  └─ Fetch and Score are decoupled: fetch hits APIs, score runs locally
         ↓
 DATABASE (SQLite — single portable file)
-  All pre-filter survivors tagged by stage reached
+  All parcels in target geography with all fetched data
   └─ Email .sqlite to partner; re-score without re-fetching
         ↓
 REVIEW UI (Flask — localhost:5000)
   Map + ranked list + score breakdown + outreach drafting + feedback report
         ↓
 OUTREACH (APIs — gated by human approval)
-  Gmail API · Lob API · phone (manual) · in-person (manual) · broker route
+  Gmail API · Lob API · phone (manual) · in-person (manual)
 ```
 
 **Key principles:**
+- **Fetch once, score forever** — API calls happen at fetch time (~5-10 min). Scoring runs instantly against local SQLite data. Re-score as many times as you want with different weights.
+- **Data collection is separate from scoring logic** — the pipeline stores all fetched data in SQLite regardless of whether it's used in scoring. Scoring pulls from stored columns based on YAML config. Adding a new data source = new fetch module + new DB columns. Using that data in scoring = new YAML entry. Removing data from scoring doesn't delete it.
 - Pipeline and UI are decoupled — pipeline runs as a script, not triggered from the browser
 - Config drives parameter tuning; new signals require a code change + new config entry
-- SQLite is the handoff point between pipeline and UI
 - Nothing sends without explicit approval in the UI
 
 ---
 
 ## Section 1 — Config (YAML)
 
-Two config files:
+Four config areas:
 
-**`config/geography.yaml`** — search area polygon (GeoJSON or bounding coordinates). Change this to expand/narrow search without touching code.
+**`config/geography.yaml`** — search area polygon defined by street boundaries (Irving Park / Lake Michigan / Fullerton / Western). Change this to expand/narrow search without touching code.
 
-**`config/gates.yaml`** — all gate parameters, scoring weights, and thresholds. Versioned so each pipeline run records which version was used. Changing weights = edit this file. Adding a new signal = edit code + add entry here.
+**`config/scoring.yaml`** — all scoring weights and the top-N threshold. Versioned so each scoring run records which version was used. Changing weights = edit this file. Adding a new signal = edit code + add entry here. Initial weights set by the historical analysis script.
 
-Outreach message templates also stored as separate files (`config/templates/`) referenced from gates.yaml.
+**`config/zoning_lookup.yaml`** — static reference mapping zone_class → max FAR, max height, max density, setbacks, multifamily-by-right flag. Built from Chicago Zoning Ordinance / Second City Zoning.
+
+**`config/tax_rates.yaml`** — Cook County equalization factor (updated annually) and local tax rates by tax code. Used to estimate property taxes from assessed values.
+
+Outreach message templates stored as separate files (`config/templates/`) referenced from scoring config.
 
 ---
 
-## Section 2 — Pipeline (4-Stage Cascade)
+## Section 2 — Pipeline
 
-### Pre-filter (Stage 0)
-- **Source:** Cook County Assessor API (Socrata) — single database
-- **Pulls:** PIN, lot size, zoning code, land use code, owner name, owner mailing address, assessed value, year built
-- **Filters:** Basic lot size threshold, zoning codes worth investigating, land use exclusions — exact parameters TBD in gate brainstorm session
-- **Adjacent consolidation:** Group parcels by owner name + mailing address. For groups with 2+ parcels, check proximity (lat/lng within ~50ft or sequential Cook County block/lot numbers). Flag adjacent same-owner parcels as consolidation candidates with combined lot size. This runs at pre-filter because it uses only Cook County data.
-- **Output:** ~500–2,000 parcels from ~10,000–15,000 total
+### Fetch (run once per area, refresh on-demand)
+- **What it does:** Pulls ALL raw data for ALL parcels in the target geography from all configured data sources. Stores as-is in SQLite — no calculations, no scoring.
+- **Sources:** Cook County Assessor (7 datasets), Chicago Data Portal (5 datasets), Cook County Clerk (delinquent tax bulk CSV). See `2026-04-11-pipeline-data-sources-design.md` for full details.
+- **Duration:** ~5-10 minutes for initial pull (~20-25 API calls)
+- **Data volume:** ~100-150 MB for the target geography (~20-25k parcels)
+- **Refresh:** On-demand. Data can be weeks/months old — that's acceptable.
 
-### Gate 1 — Financial Viability
-- **Sources:** Multiple free databases (Chicago Data Portal — zoning, permits, building footprints; Cook County Recorder — sale history). Exact sources TBD in gate brainstorm session.
-- **Logic:** FAR-based unit potential calculation, land cost per unit estimate from nearby comps. Exact parameters TBD.
-- **Output:** ~50–150 survivors
+### Consolidate (run after fetch)
+- **What it does:** Finds adjacent parcels with the same owner and creates consolidated parcel rows.
+- **Logic:** Group parcels by `owner_address_name` + `mail_address_full`. For groups with 2+ parcels, check proximity (lat/lng within ~50ft or sequential Cook County block/lot numbers). Create a new consolidated row with combined lot size and combined raw data.
+- **Output:** Consolidated rows added to the database alongside individual parcels.
 
-### Gate 2 — Motivation Scoring
-- **Sources:** Cook County Treasurer (tax delinquency), hold duration from sale history, LLC detection, other signals TBD
-- **Logic:** Weighted score 0–100. Score tiers (active / watch / hold) TBD in gate brainstorm session.
-- **Output:** ~20–50 active queue
+### Analyze (standalone script, run per area)
+- **What it does:** Sets initial scoring weights by analyzing what parcel characteristics predicted actual development in the target geography.
+- **Logic:** Identifies parcels where new construction or demo-rebuild permits were filed (2006-present). Looks up each parcel's characteristics from the year before the permit. Compares developed vs. undeveloped parcels across all stored signals. Runs correlation analysis / logistic regression.
+- **Output:** `config/scoring.yaml` with suggested initial weights + analysis report.
+- **Re-runnable:** After expanding geography, adding data sources, or accumulating enough outreach feedback.
 
-### Enrichment (Stage 3 — paid)
-- **Sources:** BatchSkipTracing (~$0.10–0.15/record) for phone + email; Illinois SOS for LLC registered agent (free, may require scraping)
-- **Broker check:** Check if property is actively listed before outreach — if listed, route to broker instead of direct owner contact
-- **Expected cost:** $3–8 per pipeline run
-- **Output:** Final active queue with contact info appended
+### Score (run anytime, instant, no API calls)
+- **What it does:** Applies a single unified scoring system to every parcel + consolidated parcel. All derived calculations happen here (FAR ratio, tax increase %, hold duration, estimated taxes, CTA distance, etc.).
+- **Logic:** Simple weighted sum. Each signal is `normalized_value × weight`, summed and normalized to 0-100. Continuous signals (hold duration, FAR gap, etc.) are normalized to 0-1 using ranges determined by the historical analysis. Binary signals (is_absentee, tax_delinquent, etc.) are 0 or 1 — same math, no special handling. Weights come from `config/scoring.yaml`.
+- **Everything gets scored** — no exclusions before scoring. All parcels in the target geography receive a score.
+- **Output:** Top N results (default 20, configurable) with **filterable exclusions** — e.g., hide tax-exempt, city-owned, or specific property classes from the top list without removing them from the database. Change filters anytime.
+- **Consolidation scoring:** Each individual parcel is scored on its own data. Consolidated groups are also scored as a single entity using combined lot size and combined data. Both appear in results independently.
+- **Key property:** Scoring is decoupled from fetching. Change weights, add signals, re-score — instant, free, no API calls.
+
+### Enrich (only for top-scored parcels ready for outreach)
+- **What it does:** Looks up contact info for top-scored parcels.
+- **Sources:** Contact enrichment provider (TBD in outreach spec) + IL SOS LLC registered agent lookup (scrape, ~20-50 lookups).
+- **When:** Only after you've reviewed scores and selected parcels for outreach.
 
 ---
 
@@ -120,13 +137,21 @@ Outreach message templates also stored as separate files (`config/templates/`) r
 
 | Column group | Columns |
 |---|---|
-| Identity | address, lat, lng, owner_name, owner_address |
-| Pre-filter | lot_size_sf, zoning_code, land_use_code, assessed_value, year_built, consolidation_group_id |
-| Gate 1 | max_far, built_far, permit_count, land_cost_per_unit, achievable_units, gate1_score, gate1_pass |
-| Gate 2 | hold_years, tax_delinquent, absentee_owner, single_asset_llc, use_discontinuity, gate2_score *(columns illustrative — finalized in gate brainstorm session)* |
-| Status | stage, score_version, first_seen_date, last_updated_date |
+| Identity | pin, address, lat, lng, ward_num, zip_code |
+| Owner | owner_name, owner_address, mail_name, mail_address, is_absentee, is_llc |
+| Building | property_class, lot_size_sf, building_sf, year_built, condition, building_classification, zone_class |
+| Values | assessed_land, assessed_building, assessed_total, land_building_ratio, estimated_annual_tax, tax_increase_pct_1yr, tax_increase_pct_5yr |
+| Sales | last_sale_date, last_sale_price, hold_duration_years, deed_type |
+| Signals | tax_delinquent, delinquency_years, open_violations_count, oldest_violation_age_days, appeal_count, has_vacancy_report, years_since_last_permit |
+| Zoning | max_far, built_far, far_gap, allows_multifamily_by_right, tif_district, cta_nearest_station, cta_distance_ft |
+| Scoring | score, score_version, consolidation_group_id |
+| Status | stage, first_seen_date, last_updated_date, last_fetched_date |
 
-Stage values: `pre_filter` / `gate1_fail` / `gate2_fail` / `active` / `outreach` / `responded` / `dead`
+Raw data from each source is also stored in source-specific tables (see data sources spec). The parcels table contains both raw fields and derived/calculated fields populated at score time.
+
+Stage values: `scored` / `outreach` / `responded` / `introduced` / `dead`
+
+All parcels in the target geography are stored. The top-N threshold determines what surfaces in the UI, but everything is browsable.
 
 **`consolidation_groups` table** — synthetic group_id for adjacent same-owner parcels
 
@@ -135,9 +160,8 @@ Stage values: `pre_filter` / `gate1_fail` / `gate2_fail` / `active` / `outreach`
 | group_id | auto-increment PK |
 | pins | JSON array of PINs |
 | combined_lot_size_sf | sum of constituent lots |
-| combined_units_potential | Gate 1 calc on combined footprint |
 | owner_name | shared owner |
-| detected_at_prefilter | date flagged |
+| detected_date | date flagged |
 
 **`contacts` table** — one row per contact per parcel or consolidation group
 
@@ -151,7 +175,7 @@ Stage values: `pre_filter` / `gate1_fail` / `gate2_fail` / `active` / `outreach`
 | email | from skip trace |
 | mailing_address | from assessor or skip trace |
 | role | `owner` / `broker` / `agent` |
-| source | `assessor` / `skip_trace` / `broker_check` |
+| source | `assessor` / `skip_trace` |
 
 **`outreach` table** — one row per outreach attempt per site per channel
 
@@ -164,15 +188,30 @@ Stage values: `pre_filter` / `gate1_fail` / `gate2_fail` / `active` / `outreach`
 | sent_date | when sent or attempted |
 | response_date | null until response received |
 | response_type | `interested` / `not_interested` / `no_response` / `referred_broker` |
-| deal_penciled | bool — logged manually after underwriting |
+| handed_off | bool — set when lead is introduced to developer partner |
+| handed_off_date | date introduced |
 | notes | free text |
+
+**`waves` table** — one row per outreach wave, for tracking learning over time
+
+| Column | Notes |
+|---|---|
+| wave_id | auto-increment PK |
+| start_date | when wave was kicked off |
+| end_date | when wave was closed out |
+| parcels_contacted | count |
+| responses_received | count |
+| leads_introduced | count |
+| notes | free text — qualitative learning from this wave |
+| config_version | which scoring.yaml version was active |
 
 ### Key design decisions
 
-- **Store everything that passes pre-filter** — tagged by stage reached. Allows re-scoring with new weights without re-fetching API data.
+- **Store everything in target geography** — all parcels, all data from all sources, regardless of whether it's currently used in scoring. Allows re-scoring with new weights or new signals without re-fetching API data.
 - **Upsert on PIN** — `INSERT ... ON CONFLICT(pin) DO UPDATE SET ...` — new API pulls refresh existing rows, add new parcels, never touch `first_seen_date`
-- **Spatial logic in Python** — geopandas handles geographic filtering and adjacency checks before writing to SQLite; SQLite never does geometry math
-- **Scale:** SQLite is sufficient. LP/Lakeview (~15k parcels) is trivial; all of Chicago (~600k) is manageable. Upgrade to PostgreSQL + PostGIS only if expanding to all of Cook County with complex spatial queries.
+- **Spatial logic in Python** — geopandas handles geographic filtering, zoning spatial joins, CTA distance calculations, and adjacency checks before writing to SQLite; SQLite never does geometry math
+- **Raw + derived separation** — source-specific tables store raw API data as-is. The parcels table contains derived/calculated fields populated at score time. This means raw data is never lost even if scoring logic changes.
+- **Scale:** SQLite is sufficient. Target geography (~20-25k parcels, ~100-150 MB) is trivial. All of Chicago (~600k) is manageable. Upgrade to PostgreSQL + PostGIS only if expanding to all of Cook County with complex spatial queries.
 
 ---
 
@@ -182,14 +221,14 @@ Stage values: `pre_filter` / `gate1_fail` / `gate2_fail` / `active` / `outreach`
 
 ### Layout
 Three-column interface:
-- **Left:** Ranked list — sorted by combined score, filterable by stage. Score badge, motivation signal tags, outreach status per row. Batch "Draft Outreach" button at bottom.
-- **Center:** Leaflet.js map (OpenStreetMap tiles, no API key). Color-coded pins by stage: active (green), consolidated (purple), outreach sent (blue), watch list (yellow). Layer toggles for Gate 1 / Gate 2 / outreach layers.
-- **Right:** Detail panel for selected site — property facts (PIN, address, lot size, zoning), score breakdown showing which signals fired and by how much (config-driven, not hardcoded), Gate 1 financial summary, "Open in Google Maps" link, outreach action buttons (Draft / Watch / Skip / Notes). Score version stamp shown so you know if site was scored under old weights.
+- **Left:** Ranked list — shows top N parcels (default 20, adjustable) sorted by score. Score badge, key signal tags, outreach status per row. Ability to browse beyond top N. Batch "Draft Outreach" button at bottom. Filter by stage (scored / outreach / responded / introduced).
+- **Center:** Leaflet.js map (OpenStreetMap tiles, no API key). Color-coded pins: top-N (green), consolidated (purple), outreach sent (blue), all others (gray). Layer toggles for score tiers and outreach status.
+- **Right:** Detail panel for selected site — property facts (PIN, address, lot size, ward, building classification), zoning context (current zone class, what's allowed by-right vs. what would require rezoning, built FAR vs. max FAR), score breakdown showing which signals fired and by how much (config-driven, not hardcoded), estimated annual property taxes, hold duration, "Open in Google Maps" link, outreach action buttons (Draft / Skip / Notes). Score version stamp shown so you know if site was scored under old weights.
 
-**Gate suggestions:** Not a persistent banner. Lives in a "Feedback Report" section, plus a prompt when starting a new pipeline run if wave data exists. See Section 6.
+**Feedback Report:** Lives as a section in the UI. Shows per-signal stats (response rates, handoff rates) from completed outreach waves and wave notes history. See Section 6.
 
 ### Score breakdown
-Pulls signal names and weights dynamically from the current YAML config. If you add a new signal or change a weight, the breakdown reflects it automatically. Each parcel records `score_version` so old scores remain interpretable after config changes.
+Single unified score (0-100) blending development potential and motivation signals. Pulls signal names and weights dynamically from `config/scoring.yaml`. If you add a new signal or change a weight, the breakdown reflects it automatically. Each parcel records `score_version` so old scores remain interpretable after config changes. The breakdown shows each signal's contribution so you can see *why* a parcel scored the way it did.
 
 ---
 
@@ -207,7 +246,7 @@ After you select sites from the ranked list, the system drafts personalized outr
 | Email | Automated | Gmail API | OAuth, sent from your Gmail account |
 | Phone | Manual | — | UI surfaces the number and a suggested script |
 | In-person | Manual | — | UI surfaces address and talking points |
-| Broker route | Automated/Manual | TBD | Triggered when broker detected at enrichment stage; different message |
+| Broker route | Manual | — | If property is listed, flag in UI and pass listing info to developer partner. You don't contact the broker directly (license constraint). |
 
 ### Outreach Sequence
 ```
@@ -216,7 +255,7 @@ Week 3  → Follow-up mail or postcard
 Week 5  → Phone call (manual — UI prompts you)
 Week 6  → Email (if available)
 ```
-Sequence is tracked per parcel in the `outreach` table. UI surfaces what's due.
+Sequence is tracked per parcel in the `outreach` table. UI surfaces what's due. Exact cadence and strategy TBD in outreach brainstorm.
 
 ### Draft & Approval Flow (high level)
 1. Select one or more sites in the ranked list
@@ -228,83 +267,54 @@ Sequence is tracked per parcel in the `outreach` table. UI surfaces what's due.
 ### Open questions for dedicated session
 - Exact template language and tone
 - How much personalization per site (which fields get merged)
-- Broker route: contact broker only, or also mail owner directly?
+- Broker route: when a property is listed, does the lead just get flagged for your developer partner, or do you still mail the owner directly?
 - Follow-up: same template or different tone on second touch?
 - Sequence scheduler: UI prompt or background check on app load?
 - Lob letter vs. postcard decision for follow-up touch
 
 ---
 
-## Section 6 — Feedback Loop & Gate Iteration
-
-**Status:** Overview captured — needs dedicated brainstorm session for full spec (part of `YYYY-MM-DD-pipeline-gates-design.md`)
+## Section 6 — Feedback Loop & Score Iteration
 
 ### Overview
-After each outreach wave closes out, the system analyzes what happened and suggests updates to both Gate 1 and Gate 2 parameters. The goal is that the pipeline gets smarter over time — both at identifying motivated sellers and at predicting whether a deal will pencil.
+After each outreach wave closes out, the system shows you what happened so you can learn and adjust. Raw stats plus your own wave notes inform manual weight adjustments in `config/scoring.yaml`.
 
-### Two feedback signals
-1. **Response rate:** Did the owner respond? Tracked per site, per channel, per motivation signal
-2. **Pencilability:** Did the deal actually pencil when you dug into it? Logged manually per site in the UI
-
-Both signals feed back into both gates — not just Gate 2 (motivation) but also Gate 1 (financial viability thresholds).
+### Feedback signals
+1. **Response rate:** Did the owner respond? Tracked per site, per channel, per scoring signal.
+2. **Handoff outcome:** Was the lead introduced to developer partner? Tracked as a boolean per site.
+3. **Wave notes:** Free-text field per wave capturing qualitative learning — what you noticed about owner psychology, which neighborhoods respond better, what site characteristics your developer partner actually cares about, why deals didn't work out. This is where the "why" lives.
 
 ### Iteration flow
-1. You log responses and pencilability outcomes in the UI as they come in
-2. When ready to analyze, open the **Feedback Report** section in the UI
-3. Click "Analyze Wave" → Python compiles per-signal stats and sends to **Claude API** (requires Anthropic API key in env)
-4. Claude returns plain-language suggestions — e.g. "Absentee owner correlated with 2× response rate — consider raising weight. Single asset LLC showed no signal — consider reducing weight."
-5. Each suggestion is displayed with the underlying data so you can evaluate it
-6. You approve or reject each suggestion individually
-7. Approved suggestions write back to `config/gates.yaml` with a version bump
-8. All existing parcels in the DB record which score version they were evaluated under — re-scoring is optional but available
-
-### Fallback
-If Claude API is unavailable or you skip the analysis: raw stats (per-signal response rates, pencil rates) are still shown in the Feedback Report. You can adjust weights manually in the YAML at any time.
+1. You log responses and handoff outcomes in the UI as they come in
+2. After a wave closes out, write wave notes capturing what you learned
+3. Open the **Feedback Report** section in the UI to see per-signal stats (response rates, handoff rates by signal)
+4. Read the stats, read your wave notes, and manually adjust weights in `config/scoring.yaml` based on your judgment
+5. Version bump on config change; all existing parcels record which score version they were evaluated under — re-scoring is optional but available
 
 ### Minimum data caveat
-Claude is prompted to flag when sample sizes are too small to draw conclusions. Early runs will return "not enough data yet" for most signals — this is correct. Don't tune weights until you have at least 2–3 completed waves with meaningful response counts.
-
-### Open questions for dedicated session
-- Exact structure of the data payload sent to Claude API
-- How score versioning works when you partially re-score (some parcels on v3, some on v4)
-- Whether the Feedback Report lives as a separate page or a section within the main UI
-- Trigger for surfacing "wave analysis available" — on app load, or manual only
+Don't tune weights until you have at least 2–3 completed waves with meaningful response counts. Early waves are for learning, not optimization.
 
 ---
 
 
 ## Future Brainstorm Sessions Required
 
-### Session: Gate Parameters
-**Produces:** `YYYY-MM-DD-pipeline-gates-design.md`
-**Must answer:**
-- Pre-filter: minimum lot size, which zoning codes to keep/drop, which land use codes to exclude
-- Adjacent consolidation: exact proximity threshold (ft), how to handle 3+ adjacent parcels
-- Gate 1: FAR calculation method, efficiency ratio assumption, minimum unit threshold, land cost/unit formula, fallback comp logic, rezoning corridor logic (separate bucket or flag?)
-- Gate 2: full list of motivation signals, starting weight per signal, score tier cutoffs (active/watch/hold), how "long hold" is defined in years
-- Both gates: what triggers a Watch List site moving to Active Queue (nearby sale, tax delinquency event, permit expiration)
-- Score versioning: how to handle re-scoring existing parcels when weights change
+### ~~Session: Scoring System~~ — COMPLETE (no separate spec needed)
+Scoring system fully defined: signals come from data sources spec, initial weights from historical analysis script, scoring math is simple weighted sum (continuous normalized to 0-1, binary as 0/1, all multiplied by weight, summed, normalized to 0-100). Everything scored, filterable exclusions on output. Consolidated parcels scored individually and as combined entity.
 
-### Session: Data Sources
-**Produces:** `YYYY-MM-DD-pipeline-data-sources-design.md`
-**Must answer:**
-- Cook County Assessor Socrata API: exact endpoint, field names, pagination, geographic filter syntax
-- Chicago Data Portal: which datasets, which endpoints, field mappings for zoning/permits/land use/building footprints
-- Cook County Treasurer: tax delinquency API — endpoint, field names, how delinquency is flagged
-- Cook County Recorder: sale history — endpoint, how to get $/sf comps within ¼ mile
-- Illinois SOS LLC lookup: is there an API or is this a scrape? What fields are available?
-- Broker/listing check: which free source to use (LoopNet scrape? CoStar? MLS? None initially?)
-- Rate limits for each source and how the pipeline handles them (sleep, retry, cache)
-- How to add a new data source without restructuring the pipeline
+### ~~Session: Data Sources~~ — COMPLETE
+**Produced:** `2026-04-11-pipeline-data-sources-design.md`
 
 ### Session: Outreach Templates & Sequence
 **Produces:** `YYYY-MM-DD-pipeline-outreach-design.md`
 **Must answer:**
+- Contact enrichment provider selection (BatchSkipTracing or alternative)
 - Physical mail template: tone, length, what property-specific data gets merged in, Lob handwritten font selection
 - Email template: subject line strategy, body, signature
 - How personalization works: which fields from the parcel/contact record get inserted
 - Follow-up templates: are they different in tone from the first touch?
-- Broker route: what changes when a broker is detected — do you still mail the owner or only contact the broker?
+- Broker route: when a property is listed, does the lead just get flagged for your developer partner, or do you still mail the owner directly?
 - Gmail API: OAuth setup, sent-from address, how to avoid spam filters
 - Lob API: account setup, address validation, return address, letter vs. postcard decision for follow-up
 - Sequence scheduler: how does the system know when to surface "week 3 follow-up ready" — is this a UI prompt or automated?
+- Outreach positioning: how to frame yourself as prospective buyer (license constraint)
