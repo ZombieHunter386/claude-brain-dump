@@ -224,11 +224,58 @@ All parcels in the target geography are stored. The top-N threshold determines w
 
 ### Layout
 Three-column interface:
-- **Left:** Ranked list — shows top N parcels (default 20, adjustable) sorted by score. Score badge, key signal tags, outreach status per row. Ability to browse beyond top N. Batch "Draft Outreach" button at bottom. Filter by stage (scored / outreach / responded / introduced).
+- **Left:** Ranked list — shows top N parcels (default 20, adjustable) sorted by score. Score badge, key signal tags, outreach status per row. Ability to browse beyond top N. Batch "Draft Outreach" button at bottom. Stage filter pills (scored / outreach / responded / introduced). Collapsible filter panel (see below).
 - **Center:** Leaflet.js map (OpenStreetMap tiles, no API key). Color-coded pins: top-N (green), consolidated (purple), outreach sent (blue), all others (gray). Layer toggles for score tiers and outreach status.
 - **Right:** Detail panel for selected site — property facts (PIN, address, lot size, ward, building classification), zoning context (current zone class, what's allowed by-right vs. what would require rezoning, built FAR vs. max FAR), score breakdown showing which signals fired and by how much (config-driven, not hardcoded), estimated annual property taxes, hold duration, "Open in Google Maps" link, outreach action buttons (Draft / Skip / Notes). Score version stamp shown so you know if site was scored under old weights.
 
 **Feedback Report:** Lives as a section in the UI. Shows per-signal stats (response rates, handoff rates) from completed outreach waves and wave notes history. See Section 6.
+
+### Filter panel (dynamic, config-driven)
+
+The filter panel is auto-generated from the database schema — not hardcoded. Adding a new column to the database + an entry in `config/ui_filters.yaml` = new filter appears automatically in the UI. No code changes needed.
+
+**How it works:**
+1. At startup, the Flask app reads `config/ui_filters.yaml` which maps database columns to filter controls
+2. For each entry, the app reads the column's data type and distinct values from SQLite
+3. Filter controls are rendered automatically based on type:
+   - **Numeric columns** (score, lot_size_sf, hold_duration_years, far_gap, etc.) → min/max range inputs
+   - **Boolean columns** (is_absentee, is_llc, tax_delinquent, etc.) → checkbox
+   - **Categorical columns** (property_class, zone_class, condition, stage, etc.) → dropdown populated with distinct values from the DB
+   - **Date columns** (last_sale_date, first_seen_date, etc.) → date range picker
+   - **Text columns** (address, owner_name, etc.) → text search with autocomplete
+
+**`config/ui_filters.yaml` structure:**
+```yaml
+filter_groups:
+  - group: Score
+    filters:
+      - column: score
+        label: Score
+        type: range
+
+  - group: Owner
+    filters:
+      - column: is_absentee
+        label: Absentee owner
+        type: checkbox
+      - column: is_llc
+        label: LLC ownership
+        type: checkbox
+
+  - group: Property
+    filters:
+      - column: property_class
+        label: Property class
+        type: dropdown
+      - column: lot_size_sf
+        label: Lot size (SF)
+        type: range
+      # ... additional columns
+```
+
+Adding a new filter = add an entry to the YAML pointing at the column name. The app reads the column type and values from SQLite at runtime. Removing a filter = remove the YAML entry. The column and data remain in the DB untouched.
+
+**Active filter count** is shown on the toggle button so you can see at a glance how many filters are applied. "Clear all" resets to defaults.
 
 ### Score breakdown
 Single unified score (0-100) blending development potential and motivation signals. Pulls signal names and weights dynamically from `config/scoring.yaml`. If you add a new signal or change a weight, the breakdown reflects it automatically. Each parcel records `score_version` so old scores remain interpretable after config changes. The breakdown shows each signal's contribution so you can see *why* a parcel scored the way it did.
