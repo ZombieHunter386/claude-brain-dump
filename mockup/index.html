@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chicago Multifamily Pipeline — Review UI</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f1117; color: #e1e4e8; height: 100%; overflow: hidden; }
+
+  /* Top bar */
+  .top-bar { background: #161b22; border-bottom: 1px solid #30363d; padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; height: 56px; }
+  .top-bar h1 { font-size: 16px; font-weight: 600; color: #f0f6fc; }
+  .top-bar .meta { font-size: 12px; color: #8b949e; }
+
+  /* Due Today Banner */
+  .due-today-banner { background: #1c2333; border-bottom: 1px solid #30363d; padding: 10px 20px; display: flex; align-items: center; gap: 16px; }
+  .due-today-banner .label { font-size: 13px; font-weight: 600; color: #f0883e; white-space: nowrap; }
+  .due-badge { background: #21262d; border: 1px solid #30363d; border-radius: 6px; padding: 5px 12px; font-size: 12px; color: #c9d1d9; cursor: pointer; transition: border-color 0.15s; }
+  .due-badge:hover { border-color: #58a6ff; }
+  .due-badge .count { color: #f0883e; font-weight: 700; margin-right: 4px; }
+  .due-badge.overdue { border-color: #f85149; }
+  .due-badge.overdue .count { color: #f85149; }
+
+  /* Main layout */
+  .main { display: flex; height: calc(100vh - 56px - 38px); overflow: hidden; }
+
+  /* Left panel — ranked list */
+  .left-panel { width: 320px; min-width: 320px; background: #161b22; border-right: 1px solid #30363d; display: flex; flex-direction: column; }
+  .panel-header { padding: 12px 16px; border-bottom: 1px solid #30363d; display: flex; align-items: center; justify-content: space-between; }
+  .panel-header h2 { font-size: 13px; font-weight: 600; color: #f0f6fc; }
+  .panel-header .count-label { font-size: 11px; color: #8b949e; }
+
+  .filter-row { padding: 8px 16px; border-bottom: 1px solid #30363d; display: flex; gap: 6px; flex-wrap: wrap; }
+  .filter-pill { font-size: 11px; padding: 3px 10px; border-radius: 12px; border: 1px solid #30363d; background: #21262d; color: #8b949e; cursor: pointer; }
+  .filter-pill.active { background: #1f6feb33; border-color: #1f6feb; color: #58a6ff; }
+
+  /* Filter panel */
+  .filter-toggle-row { padding: 6px 16px; border-bottom: 1px solid #30363d; display: flex; align-items: center; justify-content: space-between; }
+  .filter-toggle-btn { font-size: 11px; color: #58a6ff; cursor: pointer; background: none; border: none; display: flex; align-items: center; gap: 4px; }
+  .filter-toggle-btn:hover { text-decoration: underline; }
+  .active-filter-count { font-size: 10px; background: #1f6feb; color: #fff; border-radius: 8px; padding: 1px 6px; margin-left: 4px; }
+  .filter-panel { border-bottom: 1px solid #30363d; background: #0d1117; overflow-y: auto; max-height: 0; transition: max-height 0.25s ease; }
+  .filter-panel.open { max-height: 400px; }
+  .filter-group { padding: 8px 16px; border-bottom: 1px solid #21262d; }
+  .filter-group:last-child { border-bottom: none; }
+  .filter-group-title { font-size: 10px; font-weight: 600; color: #8b949e; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+  .filter-control { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; font-size: 11px; color: #c9d1d9; }
+  .filter-control:last-child { margin-bottom: 0; }
+  .filter-checkbox { width: 14px; height: 14px; accent-color: #1f6feb; cursor: pointer; }
+  .filter-range { display: flex; align-items: center; gap: 6px; }
+  .filter-input { width: 60px; background: #161b22; border: 1px solid #30363d; border-radius: 4px; padding: 3px 6px; font-size: 11px; color: #f0f6fc; }
+  .filter-input:focus { border-color: #1f6feb; outline: none; }
+  .filter-select { background: #161b22; border: 1px solid #30363d; border-radius: 4px; padding: 3px 6px; font-size: 11px; color: #f0f6fc; width: 100%; }
+  .filter-actions { padding: 8px 16px; display: flex; gap: 8px; }
+  .filter-actions .btn { flex: 1; text-align: center; }
+
+  .parcel-list { flex: 1; overflow-y: auto; }
+  .parcel-item { padding: 12px 16px; border-bottom: 1px solid #21262d; cursor: pointer; transition: background 0.1s; }
+  .parcel-item:hover { background: #1c2333; }
+  .parcel-item.selected { background: #1f6feb1a; border-left: 3px solid #1f6feb; }
+  .parcel-item .address { font-size: 13px; font-weight: 600; color: #f0f6fc; margin-bottom: 4px; }
+  .parcel-item .details { font-size: 11px; color: #8b949e; margin-bottom: 6px; }
+  .parcel-item .tags { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+  .tag { font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: 500; }
+  .tag.score { background: #238636; color: #fff; }
+  .tag.score-med { background: #9e6a03; color: #fff; }
+  .tag.absentee { background: #1f6feb33; color: #58a6ff; }
+  .tag.llc { background: #8b5cf633; color: #a78bfa; }
+  .tag.delinquent { background: #f8514933; color: #f85149; }
+  .tag.underbuilt { background: #2ea04333; color: #3fb950; }
+  .tag.listed { background: #f0883e33; color: #f0883e; }
+  .tag.stage { background: #21262d; color: #8b949e; border: 1px solid #30363d; }
+  .tag.sequence { background: #1c2333; color: #c9d1d9; border: 1px solid #30363d; font-size: 10px; }
+
+  .batch-actions { padding: 12px 16px; border-top: 1px solid #30363d; }
+  .btn { padding: 8px 16px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; border: none; }
+  .btn-primary { background: #238636; color: #fff; width: 100%; }
+  .btn-primary:hover { background: #2ea043; }
+  .btn-sm { padding: 5px 10px; font-size: 11px; }
+  .btn-outline { background: transparent; border: 1px solid #30363d; color: #c9d1d9; }
+  .btn-outline:hover { border-color: #58a6ff; color: #58a6ff; }
+  .btn-approve { background: #238636; color: #fff; }
+  .btn-skip { background: transparent; border: 1px solid #30363d; color: #8b949e; }
+
+  /* Center — map */
+  .center-panel { flex: 1; position: relative; }
+  #map { width: 100%; height: 100%; background: #1c2333; }
+  .map-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #1a1f2b; color: #30363d; font-size: 14px; }
+  .layer-toggles { position: absolute; top: 12px; right: 12px; z-index: 1000; background: #161b22ee; border: 1px solid #30363d; border-radius: 8px; padding: 10px 14px; }
+  .layer-toggles h3 { font-size: 11px; color: #8b949e; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .layer-toggle { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #c9d1d9; margin-bottom: 4px; cursor: pointer; }
+  .layer-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  /* Right panel — detail */
+  .right-panel { width: 400px; min-width: 400px; background: #161b22; border-left: 1px solid #30363d; overflow-y: auto; overflow-x: hidden; }
+  .detail-section { padding: 16px; border-bottom: 1px solid #21262d; }
+  .detail-section h3 { font-size: 12px; font-weight: 600; color: #8b949e; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+  .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .detail-item { }
+  .detail-item .label { font-size: 10px; color: #8b949e; margin-bottom: 2px; }
+  .detail-item .value { font-size: 13px; color: #f0f6fc; font-weight: 500; }
+  .detail-item .value.highlight { color: #3fb950; }
+  .detail-item .value.warn { color: #f0883e; }
+  .detail-item .value.danger { color: #f85149; }
+
+  /* Score breakdown */
+  .score-bar-container { margin-bottom: 8px; }
+  .score-bar-label { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 3px; }
+  .score-bar-label .name { color: #c9d1d9; }
+  .score-bar-label .pts { color: #8b949e; }
+  .score-bar { height: 6px; background: #21262d; border-radius: 3px; overflow: hidden; }
+  .score-bar-fill { height: 100%; border-radius: 3px; }
+
+  /* Sequence timeline */
+  .sequence-timeline { display: flex; flex-direction: column; gap: 0; }
+  .timeline-item { display: flex; align-items: flex-start; gap: 12px; position: relative; padding-bottom: 16px; }
+  .timeline-item:last-child { padding-bottom: 0; }
+  .timeline-line { position: absolute; left: 11px; top: 24px; bottom: 0; width: 2px; background: #30363d; }
+  .timeline-item:last-child .timeline-line { display: none; }
+  .timeline-dot { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0; z-index: 1; }
+  .timeline-dot.sent { background: #238636; color: #fff; }
+  .timeline-dot.due { background: #f0883e; color: #fff; animation: pulse 2s infinite; }
+  .timeline-dot.upcoming { background: #21262d; color: #8b949e; border: 1px solid #30363d; }
+  .timeline-dot.skipped { background: #21262d; color: #484f58; border: 1px dashed #484f58; }
+  .timeline-content { flex: 1; }
+  .timeline-content .channel { font-size: 12px; font-weight: 600; color: #f0f6fc; }
+  .timeline-content .date { font-size: 11px; color: #8b949e; }
+  .timeline-content .status { font-size: 11px; margin-top: 2px; }
+  .timeline-content .status.sent { color: #3fb950; }
+  .timeline-content .status.due { color: #f0883e; }
+
+  @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(240,136,62,0.4); } 50% { box-shadow: 0 0 0 6px rgba(240,136,62,0); } }
+
+  /* Draft preview */
+  .draft-preview { background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 12px; margin-top: 8px; }
+  .draft-preview .subject { font-size: 12px; font-weight: 600; color: #f0f6fc; margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid #21262d; }
+  .draft-preview .body { font-size: 12px; color: #c9d1d9; line-height: 1.5; white-space: pre-wrap; }
+  .draft-actions { display: flex; gap: 8px; margin-top: 10px; }
+
+  /* Links */
+  a { color: #58a6ff; text-decoration: none; font-size: 12px; }
+  a:hover { text-decoration: underline; }
+
+  /* Feedback report section */
+  .feedback-stat { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #21262d; }
+  .feedback-stat:last-child { border: none; }
+  .feedback-stat .signal { font-size: 12px; color: #c9d1d9; }
+  .feedback-stat .rate { font-size: 12px; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<!-- Top Bar -->
+<div class="top-bar">
+  <h1>Chicago Multifamily Pipeline</h1>
+  <div class="meta">Score v3 &middot; 24,817 parcels &middot; Top 20 shown &middot; Last fetched Apr 10</div>
+</div>
+
+<!-- Due Today Banner -->
+<div class="due-today-banner">
+  <div class="label">DUE TODAY</div>
+  <div class="due-badge"><span class="count">3</span> emails ready to draft</div>
+  <div class="due-badge"><span class="count">2</span> phone calls due</div>
+  <div class="due-badge overdue"><span class="count">1</span> letter overdue</div>
+  <div style="flex:1"></div>
+  <a href="#" style="font-size: 12px;">View all active sequences &rarr;</a>
+</div>
+
+<!-- Main 3-column layout -->
+<div class="main">
+
+  <!-- LEFT: Ranked List -->
+  <div class="left-panel">
+    <div class="panel-header">
+      <h2>Ranked Parcels</h2>
+      <span class="count-label">20 of 24,817</span>
+    </div>
+    <div class="filter-row">
+      <div class="filter-pill active">All</div>
+      <div class="filter-pill">Scored</div>
+      <div class="filter-pill">Outreach</div>
+      <div class="filter-pill">Responded</div>
+      <div class="filter-pill">Introduced</div>
+      <div class="filter-pill">Dead</div>
+    </div>
+    <div class="filter-toggle-row">
+      <button class="filter-toggle-btn" onclick="document.querySelector('.filter-panel').classList.toggle('open'); this.querySelector('.arrow').textContent = document.querySelector('.filter-panel').classList.contains('open') ? '▾' : '▸';">
+        <span class="arrow">▸</span> Filters <span class="active-filter-count">3</span>
+      </button>
+      <button class="filter-toggle-btn" style="color:#8b949e; font-size:10px;">Clear all</button>
+    </div>
+    <div class="filter-panel open">
+      <!-- Score -->
+      <div class="filter-group">
+        <div class="filter-group-title">Score</div>
+        <div class="filter-control">
+          <div class="filter-range">
+            <input type="text" class="filter-input" value="70" placeholder="Min"> <span style="color:#484f58;">—</span> <input type="text" class="filter-input" value="100" placeholder="Max">
+          </div>
+        </div>
+      </div>
+      <!-- Owner -->
+      <div class="filter-group">
+        <div class="filter-group-title">Owner</div>
+        <div class="filter-control"><input type="checkbox" class="filter-checkbox" checked><label>Absentee owner</label></div>
+        <div class="filter-control"><input type="checkbox" class="filter-checkbox"><label>LLC ownership</label></div>
+      </div>
+      <!-- Property -->
+      <div class="filter-group">
+        <div class="filter-group-title">Property</div>
+        <div class="filter-control" style="flex-direction:column; align-items:flex-start; gap:4px;">
+          <label style="font-size:10px; color:#8b949e;">Property class</label>
+          <select class="filter-select">
+            <option>All classes</option>
+            <option>203 (2-6 unit)</option>
+            <option selected>211 (7+ unit)</option>
+            <option>318 (Commercial)</option>
+          </select>
+        </div>
+        <div class="filter-control" style="margin-top:6px;">
+          <span style="width:70px;">Lot size</span>
+          <div class="filter-range">
+            <input type="text" class="filter-input" value="" placeholder="Min SF"> <span style="color:#484f58;">—</span> <input type="text" class="filter-input" value="" placeholder="Max SF">
+          </div>
+        </div>
+        <div class="filter-control" style="margin-top:4px;">
+          <span style="width:70px;">Year built</span>
+          <div class="filter-range">
+            <input type="text" class="filter-input" value="" placeholder="From"> <span style="color:#484f58;">—</span> <input type="text" class="filter-input" value="" placeholder="To">
+          </div>
+        </div>
+        <div class="filter-control" style="margin-top:4px;">
+          <span style="width:70px;">Condition</span>
+          <select class="filter-select" style="width:auto; flex:1;">
+            <option>Any</option>
+            <option>Poor</option>
+            <option>Fair</option>
+            <option>Average</option>
+            <option>Good</option>
+          </select>
+        </div>
+      </div>
+      <!-- Zoning -->
+      <div class="filter-group">
+        <div class="filter-group-title">Zoning</div>
+        <div class="filter-control" style="flex-direction:column; align-items:flex-start; gap:4px;">
+          <label style="font-size:10px; color:#8b949e;">Zone class</label>
+          <select class="filter-select">
+            <option>All zones</option>
+            <option>RS-3</option>
+            <option>RT-4</option>
+            <option>RM-5</option>
+            <option>B2-3</option>
+            <option>C1-3</option>
+            <option>C1-5</option>
+          </select>
+        </div>
+        <div class="filter-control" style="margin-top:4px;"><input type="checkbox" class="filter-checkbox" checked><label>Multifamily by right</label></div>
+        <div class="filter-control" style="margin-top:4px;">
+          <span style="width:70px;">FAR gap</span>
+          <div class="filter-range">
+            <input type="text" class="filter-input" value="" placeholder="Min"> <span style="color:#484f58;">—</span> <input type="text" class="filter-input" value="" placeholder="Max">
+          </div>
+        </div>
+        <div class="filter-control" style="margin-top:4px;"><input type="checkbox" class="filter-checkbox"><label>In TIF district</label></div>
+        <div class="filter-control"><input type="checkbox" class="filter-checkbox"><label>TOD eligible (&lt;1,320 ft from L)</label></div>
+      </div>
+      <!-- Motivation Signals -->
+      <div class="filter-group">
+        <div class="filter-group-title">Motivation Signals</div>
+        <div class="filter-control"><input type="checkbox" class="filter-checkbox"><label>Tax delinquent</label></div>
+        <div class="filter-control"><input type="checkbox" class="filter-checkbox"><label>Open violations</label></div>
+        <div class="filter-control"><input type="checkbox" class="filter-checkbox"><label>Vacancy report</label></div>
+        <div class="filter-control"><input type="checkbox" class="filter-checkbox"><label>Deferred maintenance (10+ yr no permit)</label></div>
+        <div class="filter-control" style="margin-top:4px;">
+          <span style="width:90px;">Hold duration</span>
+          <div class="filter-range">
+            <input type="text" class="filter-input" value="" placeholder="Min yr"> <span style="color:#484f58;">—</span> <input type="text" class="filter-input" value="" placeholder="Max yr">
+          </div>
+        </div>
+      </div>
+      <!-- Financial -->
+      <div class="filter-group">
+        <div class="filter-group-title">Financial</div>
+        <div class="filter-control">
+          <span style="width:110px;">Assessed value</span>
+          <div class="filter-range">
+            <input type="text" class="filter-input" value="" placeholder="Min $"> <span style="color:#484f58;">—</span> <input type="text" class="filter-input" value="" placeholder="Max $">
+          </div>
+        </div>
+        <div class="filter-control" style="margin-top:4px;">
+          <span style="width:110px;">Land/bldg ratio</span>
+          <div class="filter-range">
+            <input type="text" class="filter-input" value="" placeholder="Min"> <span style="color:#484f58;">—</span> <input type="text" class="filter-input" value="" placeholder="Max">
+          </div>
+        </div>
+        <div class="filter-control" style="margin-top:4px;">
+          <span style="width:110px;">Tax increase 5yr</span>
+          <div class="filter-range">
+            <input type="text" class="filter-input" value="" placeholder="Min %"> <span style="color:#484f58;">—</span> <input type="text" class="filter-input" value="" placeholder="Max %">
+          </div>
+        </div>
+      </div>
+      <!-- Exclusions -->
+      <div class="filter-group">
+        <div class="filter-group-title">Exclusions</div>
+        <div class="filter-control"><input type="checkbox" class="filter-checkbox" checked><label>Hide tax-exempt</label></div>
+        <div class="filter-control"><input type="checkbox" class="filter-checkbox"><label>Hide city/government-owned</label></div>
+        <div class="filter-control"><input type="checkbox" class="filter-checkbox"><label>Hide listed properties</label></div>
+        <div class="filter-control"><input type="checkbox" class="filter-checkbox"><label>Hide dead leads</label></div>
+      </div>
+      <!-- Apply / Reset -->
+      <div class="filter-actions">
+        <button class="btn btn-primary btn-sm">Apply Filters</button>
+        <button class="btn btn-outline btn-sm">Reset</button>
+      </div>
+    </div>
+    <div class="parcel-list">
+      <div class="parcel-item selected">
+        <div class="address">2847 N Racine Ave</div>
+        <div class="details">3,750 SF lot &middot; RT-4 &middot; Built 1923 &middot; Held 22yr</div>
+        <div class="tags">
+          <span class="tag score">83</span>
+          <span class="tag absentee">Absentee</span>
+          <span class="tag llc">LLC</span>
+          <span class="tag underbuilt">FAR gap 2.8x</span>
+          <span class="tag stage">Outreach</span>
+          <span class="tag sequence">Touch 3/7 — Phone</span>
+        </div>
+      </div>
+      <div class="parcel-item">
+        <div class="address">1423 W Diversey Pkwy</div>
+        <div class="details">6,200 SF lot &middot; RM-5 &middot; Built 1918 &middot; Held 31yr</div>
+        <div class="tags">
+          <span class="tag score">84</span>
+          <span class="tag absentee">Absentee</span>
+          <span class="tag delinquent">Tax delinquent 3yr</span>
+          <span class="tag stage">Scored</span>
+        </div>
+      </div>
+      <div class="parcel-item">
+        <div class="address">3201 N Sheffield Ave</div>
+        <div class="details">5,100 SF lot &middot; B2-3 &middot; Built 1952 &middot; Held 18yr</div>
+        <div class="tags">
+          <span class="tag score">81</span>
+          <span class="tag llc">LLC</span>
+          <span class="tag underbuilt">FAR gap 3.1x</span>
+          <span class="tag sequence">Touch 1/7 — Email</span>
+        </div>
+      </div>
+      <div class="parcel-item">
+        <div class="address">2156 W Belmont Ave</div>
+        <div class="details">4,800 SF lot &middot; C1-3 &middot; Built 1941 &middot; Held 27yr</div>
+        <div class="tags">
+          <span class="tag score-med">76</span>
+          <span class="tag absentee">Absentee</span>
+          <span class="tag underbuilt">FAR gap 2.2x</span>
+          <span class="tag stage">Scored</span>
+        </div>
+      </div>
+      <div class="parcel-item">
+        <div class="address">1847 W Wrightwood Ave</div>
+        <div class="details">3,200 SF lot &middot; RT-4 &middot; Built 1909 &middot; Held 35yr</div>
+        <div class="tags">
+          <span class="tag score-med">74</span>
+          <span class="tag delinquent">Tax delinquent 5yr</span>
+          <span class="tag stage">Responded</span>
+        </div>
+      </div>
+      <div class="parcel-item">
+        <div class="address">2934 N Halsted St</div>
+        <div class="details">7,500 SF lot &middot; B3-2 &middot; Built 1936 &middot; Held 12yr</div>
+        <div class="tags">
+          <span class="tag score-med">72</span>
+          <span class="tag listed">Listed</span>
+          <span class="tag underbuilt">FAR gap 4.0x</span>
+        </div>
+      </div>
+      <div class="parcel-item">
+        <div class="address">3456 N Clark St</div>
+        <div class="details">4,100 SF lot &middot; B3-3 &middot; Built 1947 &middot; Held 19yr</div>
+        <div class="tags">
+          <span class="tag score-med">71</span>
+          <span class="tag absentee">Absentee</span>
+          <span class="tag llc">LLC</span>
+          <span class="tag stage">Outreach</span>
+        </div>
+      </div>
+      <div class="parcel-item">
+        <div class="address">2245 N Lincoln Ave</div>
+        <div class="details">5,500 SF lot &middot; C1-5 &middot; Built 1929 &middot; Held 25yr</div>
+        <div class="tags">
+          <span class="tag score-med">69</span>
+          <span class="tag underbuilt">FAR gap 3.5x</span>
+          <span class="tag stage">Scored</span>
+        </div>
+      </div>
+    </div>
+    <div style="padding: 8px 16px; text-align: center; border-bottom: 1px solid #30363d;">
+      <button class="btn btn-sm btn-outline" style="width:100%;">Load more parcels (8 of 24,817)</button>
+    </div>
+    <div class="batch-actions">
+      <button class="btn btn-primary">Draft Outreach for Selected</button>
+    </div>
+  </div>
+
+  <!-- CENTER: Map -->
+  <div class="center-panel">
+    <div id="map"></div>
+    <div class="layer-toggles">
+      <h3>Layers</h3>
+      <label class="layer-toggle"><span class="layer-dot" style="background:#238636"></span> Top-N scored</label>
+      <label class="layer-toggle"><span class="layer-dot" style="background:#a855f7"></span> Consolidated</label>
+      <label class="layer-toggle"><span class="layer-dot" style="background:#58a6ff"></span> Outreach sent</label>
+      <label class="layer-toggle"><span class="layer-dot" style="background:#f0883e"></span> Listed</label>
+      <label class="layer-toggle"><span class="layer-dot" style="background:#484f58"></span> All others</label>
+    </div>
+  </div>
+
+  <!-- RIGHT: Detail Panel -->
+  <div class="right-panel">
+
+    <!-- Property Facts -->
+    <div class="detail-section">
+      <h3>Property Facts</h3>
+      <div class="detail-grid">
+        <div class="detail-item"><div class="label">PIN</div><div class="value">14-29-302-018-0000</div></div>
+        <div class="detail-item"><div class="label">Address</div><div class="value">2847 N Racine Ave</div></div>
+        <div class="detail-item"><div class="label">Lot Size</div><div class="value">3,750 SF</div></div>
+        <div class="detail-item"><div class="label">Building SF</div><div class="value">2,400 SF</div></div>
+        <div class="detail-item"><div class="label">Year Built</div><div class="value">1923</div></div>
+        <div class="detail-item"><div class="label">Ward</div><div class="value">44</div></div>
+        <div class="detail-item"><div class="label">Class</div><div class="value">211 (7+ unit)</div></div>
+        <div class="detail-item"><div class="label">Building Type</div><div class="value">2 Story</div></div>
+        <div class="detail-item"><div class="label">Condition</div><div class="value warn">Fair</div></div>
+        <div class="detail-item"><div class="label">Open Violations</div><div class="value warn">2</div></div>
+      </div>
+      <div style="margin-top: 10px;"><a href="#">Open in Google Maps &rarr;</a></div>
+    </div>
+
+    <!-- Owner Info -->
+    <div class="detail-section">
+      <h3>Owner</h3>
+      <div class="detail-grid">
+        <div class="detail-item"><div class="label">Owner</div><div class="value">Racine Holdings LLC</div></div>
+        <div class="detail-item"><div class="label">Type</div><div class="value" style="color:#a78bfa">LLC &middot; Absentee</div></div>
+        <div class="detail-item"><div class="label">Mailing Address</div><div class="value">PO Box 4421, Naperville IL</div></div>
+        <div class="detail-item"><div class="label">Hold Duration</div><div class="value warn">22 years</div></div>
+        <div class="detail-item"><div class="label">Registered Agent</div><div class="value">Michael Chen</div></div>
+        <div class="detail-item"><div class="label">Phone</div><div class="value">312-555-0187</div></div>
+        <div class="detail-item"><div class="label">Email</div><div class="value">mchen@gmail.com</div></div>
+        <div class="detail-item"><div class="label">Listing Status</div><div class="value highlight">Not listed</div></div>
+      </div>
+    </div>
+
+    <!-- Zoning Context -->
+    <div class="detail-section">
+      <h3>Zoning Context</h3>
+      <div class="detail-grid">
+        <div class="detail-item"><div class="label">Zone Class</div><div class="value">RT-4</div></div>
+        <div class="detail-item"><div class="label">Allows Multifamily</div><div class="value highlight">By right</div></div>
+        <div class="detail-item"><div class="label">Max FAR</div><div class="value">1.75</div></div>
+        <div class="detail-item"><div class="label">Built FAR</div><div class="value">0.64</div></div>
+        <div class="detail-item"><div class="label">FAR Gap</div><div class="value highlight">2.8x underbuilt</div></div>
+        <div class="detail-item"><div class="label">Max Height</div><div class="value">38 ft</div></div>
+        <div class="detail-item"><div class="label">Nearest CTA</div><div class="value">Diversey (Brown) — 850 ft</div></div>
+        <div class="detail-item"><div class="label">TOD Eligible</div><div class="value highlight">Yes (&lt;1,320 ft)</div></div>
+      </div>
+    </div>
+
+    <!-- Score Breakdown -->
+    <div class="detail-section">
+      <h3>Score Breakdown <span style="font-size:10px; color:#8b949e; text-transform:none; letter-spacing:0;">&middot; 83/100 &middot; v3</span></h3>
+      <table style="width:100%; border-collapse:collapse; font-size:11px; margin-bottom:8px;">
+        <thead>
+          <tr style="border-bottom:1px solid #30363d;">
+            <th style="text-align:left; padding:4px 0; color:#8b949e; font-weight:500;">Signal</th>
+            <th style="text-align:left; padding:4px 6px; color:#8b949e; font-weight:500;">Raw</th>
+            <th style="text-align:right; padding:4px 6px; color:#8b949e; font-weight:500;">Norm</th>
+            <th style="text-align:right; padding:4px 6px; color:#8b949e; font-weight:500;">Wt</th>
+            <th style="text-align:right; padding:4px 0; color:#8b949e; font-weight:500;">N×W</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom:1px solid #21262d;">
+            <td style="padding:5px 0; color:#f0f6fc;">FAR gap</td>
+            <td style="padding:5px 6px; color:#c9d1d9;">2.8x</td>
+            <td style="text-align:right; padding:5px 6px; color:#3fb950;">0.93</td>
+            <td style="text-align:right; padding:5px 6px; color:#8b949e;">0.20</td>
+            <td style="text-align:right; padding:5px 0; color:#3fb950; font-weight:600;">0.186</td>
+          </tr>
+          <tr style="border-bottom:1px solid #21262d;">
+            <td style="padding:5px 0; color:#f0f6fc;">Hold duration</td>
+            <td style="padding:5px 6px; color:#c9d1d9;">22 yr</td>
+            <td style="text-align:right; padding:5px 6px; color:#3fb950;">0.85</td>
+            <td style="text-align:right; padding:5px 6px; color:#8b949e;">0.18</td>
+            <td style="text-align:right; padding:5px 0; color:#3fb950; font-weight:600;">0.153</td>
+          </tr>
+          <tr style="border-bottom:1px solid #21262d;">
+            <td style="padding:5px 0; color:#f0f6fc;">Absentee owner</td>
+            <td style="padding:5px 6px; color:#c9d1d9;">Yes</td>
+            <td style="text-align:right; padding:5px 6px; color:#3fb950;">1.00</td>
+            <td style="text-align:right; padding:5px 6px; color:#8b949e;">0.12</td>
+            <td style="text-align:right; padding:5px 0; color:#3fb950; font-weight:600;">0.120</td>
+          </tr>
+          <tr style="border-bottom:1px solid #21262d;">
+            <td style="padding:5px 0; color:#f0f6fc;">CTA proximity</td>
+            <td style="padding:5px 6px; color:#c9d1d9;">850 ft</td>
+            <td style="text-align:right; padding:5px 6px; color:#3fb950;">0.88</td>
+            <td style="text-align:right; padding:5px 6px; color:#8b949e;">0.12</td>
+            <td style="text-align:right; padding:5px 0; color:#3fb950; font-weight:600;">0.106</td>
+          </tr>
+          <tr style="border-bottom:1px solid #21262d;">
+            <td style="padding:5px 0; color:#f0f6fc;">LLC ownership</td>
+            <td style="padding:5px 6px; color:#c9d1d9;">Yes</td>
+            <td style="text-align:right; padding:5px 6px; color:#3fb950;">1.00</td>
+            <td style="text-align:right; padding:5px 6px; color:#8b949e;">0.08</td>
+            <td style="text-align:right; padding:5px 0; color:#3fb950; font-weight:600;">0.080</td>
+          </tr>
+          <tr style="border-bottom:1px solid #21262d;">
+            <td style="padding:5px 0; color:#f0f6fc;">Land/bldg ratio</td>
+            <td style="padding:5px 6px; color:#c9d1d9;">0.68</td>
+            <td style="text-align:right; padding:5px 6px; color:#2ea043;">0.72</td>
+            <td style="text-align:right; padding:5px 6px; color:#8b949e;">0.10</td>
+            <td style="text-align:right; padding:5px 0; color:#2ea043; font-weight:600;">0.072</td>
+          </tr>
+          <tr style="border-bottom:1px solid #21262d;">
+            <td style="padding:5px 0; color:#f0f6fc;">Tax increase 5yr</td>
+            <td style="padding:5px 6px; color:#c9d1d9;">+34%</td>
+            <td style="text-align:right; padding:5px 6px; color:#2ea043;">0.68</td>
+            <td style="text-align:right; padding:5px 6px; color:#8b949e;">0.08</td>
+            <td style="text-align:right; padding:5px 0; color:#2ea043; font-weight:600;">0.054</td>
+          </tr>
+          <tr style="border-bottom:1px solid #21262d;">
+            <td style="padding:5px 0; color:#f0f6fc;">Open violations</td>
+            <td style="padding:5px 6px; color:#c9d1d9;">2 open</td>
+            <td style="text-align:right; padding:5px 6px; color:#2ea043;">0.40</td>
+            <td style="text-align:right; padding:5px 6px; color:#8b949e;">0.06</td>
+            <td style="text-align:right; padding:5px 0; color:#2ea043; font-weight:600;">0.024</td>
+          </tr>
+          <tr style="border-bottom:1px solid #21262d;">
+            <td style="padding:5px 0; color:#f0f6fc;">Deferred maint.</td>
+            <td style="padding:5px 6px; color:#c9d1d9;">12 yr no permit</td>
+            <td style="text-align:right; padding:5px 6px; color:#2ea043;">0.75</td>
+            <td style="text-align:right; padding:5px 6px; color:#8b949e;">0.04</td>
+            <td style="text-align:right; padding:5px 0; color:#2ea043; font-weight:600;">0.030</td>
+          </tr>
+          <tr style="border-bottom:1px solid #21262d;">
+            <td style="padding:5px 0; color:#f0f6fc;">Tax delinquent</td>
+            <td style="padding:5px 6px; color:#8b949e;">No</td>
+            <td style="text-align:right; padding:5px 6px; color:#8b949e;">0.00</td>
+            <td style="text-align:right; padding:5px 6px; color:#8b949e;">0.02</td>
+            <td style="text-align:right; padding:5px 0; color:#8b949e;">0.000</td>
+          </tr>
+        </tbody>
+      </table>
+      <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-top:1px solid #30363d;">
+        <span style="font-size:11px; color:#8b949e;">Sum(N×W) = 0.825 &middot; Weights from scoring.yaml v3 &middot; Score = Sum × 100 &rarr; round</span>
+        <span style="font-size:14px; font-weight:700; color:#3fb950;">83</span>
+      </div>
+      <div style="margin-top:6px;">
+        <div class="score-bar" style="height:8px;"><div class="score-bar-fill" style="width:83%; background: linear-gradient(90deg, #238636, #3fb950);"></div></div>
+      </div>
+    </div>
+
+    <!-- Estimated Taxes -->
+    <div class="detail-section">
+      <h3>Financials</h3>
+      <div class="detail-grid">
+        <div class="detail-item"><div class="label">Assessed Total</div><div class="value">$287,430</div></div>
+        <div class="detail-item"><div class="label">Est. Annual Tax</div><div class="value warn">$14,820</div></div>
+        <div class="detail-item"><div class="label">Tax Change (1yr)</div><div class="value warn">+8.2%</div></div>
+        <div class="detail-item"><div class="label">Tax Change (5yr)</div><div class="value danger">+34%</div></div>
+        <div class="detail-item"><div class="label">Last Sale Price</div><div class="value">$385,000</div></div>
+        <div class="detail-item"><div class="label">Last Sale Date</div><div class="value">Mar 2004</div></div>
+      </div>
+    </div>
+
+    <!-- Outreach Sequence Timeline -->
+    <div class="detail-section">
+      <h3>Outreach Sequence <span style="font-size:10px; color:#8b949e; text-transform:none; letter-spacing:0;">&middot; Wave 2</span></h3>
+      <div class="sequence-timeline">
+        <div class="timeline-item">
+          <div class="timeline-dot sent">1</div>
+          <div class="timeline-line"></div>
+          <div class="timeline-content">
+            <div class="channel">Email — First Touch</div>
+            <div class="date">Apr 1 &middot; Day 0</div>
+            <div class="status sent">Sent &middot; No reply</div>
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-dot sent">2</div>
+          <div class="timeline-line"></div>
+          <div class="timeline-content">
+            <div class="channel">Email — Follow-up</div>
+            <div class="date">Apr 4 &middot; Day 3</div>
+            <div class="status sent">Sent &middot; No reply</div>
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-dot due">3</div>
+          <div class="timeline-line"></div>
+          <div class="timeline-content">
+            <div class="channel">Phone Call</div>
+            <div class="date">Apr 8 &middot; Day 7</div>
+            <div class="status due">Due today</div>
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-dot upcoming">4</div>
+          <div class="timeline-line"></div>
+          <div class="timeline-content">
+            <div class="channel">Physical Letter</div>
+            <div class="date">Apr 15 &middot; Day 14</div>
+            <div class="status" style="color:#8b949e">Upcoming</div>
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-dot upcoming">5</div>
+          <div class="timeline-line"></div>
+          <div class="timeline-content">
+            <div class="channel">Email — New Hook</div>
+            <div class="date">Apr 20 &middot; Day 19</div>
+            <div class="status" style="color:#8b949e">Upcoming</div>
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-dot upcoming">6</div>
+          <div class="timeline-line"></div>
+          <div class="timeline-content">
+            <div class="channel">Postcard</div>
+            <div class="date">Apr 25 &middot; Day 24</div>
+            <div class="status" style="color:#8b949e">Upcoming</div>
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-dot upcoming">7</div>
+          <div class="timeline-content">
+            <div class="channel">Email — Final</div>
+            <div class="date">May 1 &middot; Day 30</div>
+            <div class="status" style="color:#8b949e">Upcoming</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Current Due Touch — Phone Script -->
+    <div class="detail-section" style="background:#1c2333; border: 1px solid #f0883e44; border-radius: 8px; margin: 0 12px 12px 12px;">
+      <h3 style="color:#f0883e;">Phone Call Due — Touch 3</h3>
+      <div style="margin-bottom: 10px;">
+        <div class="detail-item"><div class="label">Call</div><div class="value">Michael Chen &middot; 312-555-0187</div></div>
+      </div>
+      <div class="draft-preview">
+        <div class="subject" style="color:#f0883e;">Talking Points</div>
+        <div class="body">• Introduce yourself — you live in Lakeview, looking at properties nearby
+
+• "You've probably seen how much the block has changed recently — a lot of new construction going up around Racine and Diversey."
+
+• "A lot of owners I've talked to are starting to think about what their property could be worth to the right buyer."
+
+• "I'd love to buy you a coffee sometime this week and share what I'm seeing in the neighborhood. No pressure at all."
+
+• If he mentions a broker or agent: note it, don't push. Mark as referred_broker.</div>
+      </div>
+      <div class="draft-actions">
+        <button class="btn btn-sm btn-outline" style="border-color:#f0883e; color:#f0883e;">Mark Call Complete</button>
+        <button class="btn btn-sm btn-skip">Skip Touch</button>
+        <button class="btn btn-sm btn-outline">Add Notes</button>
+      </div>
+    </div>
+
+    <!-- Draft Preview (for email touches) -->
+    <div class="detail-section">
+      <h3>Last Sent — Touch 2 Email</h3>
+      <div class="draft-preview">
+        <div class="subject">Re: Your property on Racine Ave</div>
+        <div class="body">Hi Michael,
+
+I reached out a few days ago about your building on Racine. I know things like this can get buried in the inbox.
+
+I live a few blocks away and I've been watching the neighborhood closely — three new projects broke ground within two blocks of you this past year. Properties on your stretch of Racine are getting a lot of attention.
+
+Would you be open to grabbing a coffee this week? I'd love to share what I'm seeing and hear your thoughts. No pressure at all.
+
+Best,
+Hunter</div>
+      </div>
+    </div>
+
+    <!-- Outreach Actions -->
+    <div class="detail-section">
+      <h3>Actions</h3>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <button class="btn btn-sm btn-outline">Log Response</button>
+        <button class="btn btn-sm btn-outline">Mark Dead</button>
+        <button class="btn btn-sm btn-outline">Add Notes</button>
+      </div>
+      <!-- Response logging form (shown when Log Response is clicked) -->
+      <div style="margin-top:12px; padding:12px; background:#0d1117; border:1px solid #30363d; border-radius:6px;">
+        <div style="font-size:11px; color:#8b949e; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px;">Log Response</div>
+        <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;">
+          <button class="btn btn-sm btn-outline" style="border-color:#3fb950; color:#3fb950;">Interested</button>
+          <button class="btn btn-sm btn-outline">Not Interested</button>
+          <button class="btn btn-sm btn-outline">Referred to Broker</button>
+        </div>
+        <div style="margin-bottom:8px;">
+          <div style="font-size:10px; color:#8b949e; margin-bottom:4px;">Channel responded on</div>
+          <div style="display:flex; gap:6px;">
+            <button class="btn btn-sm btn-outline" style="font-size:10px;">Email</button>
+            <button class="btn btn-sm btn-outline" style="font-size:10px;">Phone</button>
+            <button class="btn btn-sm btn-outline" style="font-size:10px;">Mail</button>
+            <button class="btn btn-sm btn-outline" style="font-size:10px;">In Person</button>
+          </div>
+        </div>
+        <textarea style="width:100%; background:#161b22; border:1px solid #30363d; border-radius:4px; padding:6px; font-size:11px; color:#c9d1d9; resize:vertical; height:50px;" placeholder="Notes about this response..."></textarea>
+        <div style="display:flex; gap:8px; margin-top:8px;">
+          <button class="btn btn-sm btn-primary" style="flex:1;">Save Response</button>
+          <button class="btn btn-sm btn-skip">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Feedback Report (Tab view) -->
+    <div class="detail-section" style="border-top: 2px solid #1f6feb;">
+      <div style="display:flex; gap:12px; margin-bottom:12px;">
+        <span style="font-size:12px; font-weight:600; color:#58a6ff; border-bottom:2px solid #58a6ff; padding-bottom:4px; cursor:pointer;">Feedback Report</span>
+        <span style="font-size:12px; color:#8b949e; cursor:pointer;">Wave Notes</span>
+      </div>
+      <div style="font-size:11px; color:#8b949e; margin-bottom:10px;">Wave 1 — 18 parcels contacted &middot; 4 responses &middot; 22% response rate</div>
+      <div class="feedback-stat">
+        <span class="signal">FAR gap (high)</span>
+        <span class="rate" style="color:#3fb950;">3/7 responded (43%)</span>
+      </div>
+      <div class="feedback-stat">
+        <span class="signal">Absentee owner</span>
+        <span class="rate" style="color:#3fb950;">3/12 responded (25%)</span>
+      </div>
+      <div class="feedback-stat">
+        <span class="signal">Tax delinquent</span>
+        <span class="rate" style="color:#f0883e;">1/5 responded (20%)</span>
+      </div>
+      <div class="feedback-stat">
+        <span class="signal">LLC ownership</span>
+        <span class="rate" style="color:#f0883e;">1/8 responded (13%)</span>
+      </div>
+      <div class="feedback-stat">
+        <span class="signal">Long hold (&gt;20yr)</span>
+        <span class="rate" style="color:#8b949e;">0/6 responded (0%)</span>
+      </div>
+      <div style="margin-top:12px;">
+        <div style="font-size:11px; color:#8b949e; margin-bottom:6px;">Response by Channel</div>
+        <div class="feedback-stat">
+          <span class="signal">Email</span>
+          <span class="rate" style="color:#3fb950;">2 responses</span>
+        </div>
+        <div class="feedback-stat">
+          <span class="signal">Phone</span>
+          <span class="rate" style="color:#3fb950;">1 response</span>
+        </div>
+        <div class="feedback-stat">
+          <span class="signal">Letter</span>
+          <span class="rate" style="color:#3fb950;">1 response</span>
+        </div>
+        <div class="feedback-stat">
+          <span class="signal">Postcard</span>
+          <span class="rate" style="color:#8b949e;">0 responses</span>
+        </div>
+      </div>
+      <div style="margin-top:12px;">
+        <div style="font-size:11px; color:#8b949e; margin-bottom:6px;">Response by Type</div>
+        <div class="feedback-stat">
+          <span class="signal">Interested</span>
+          <span class="rate" style="color:#3fb950;">2</span>
+        </div>
+        <div class="feedback-stat">
+          <span class="signal">Not interested</span>
+          <span class="rate" style="color:#8b949e;">1</span>
+        </div>
+        <div class="feedback-stat">
+          <span class="signal">Referred to broker</span>
+          <span class="rate" style="color:#f0883e;">1</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  // Initialize map centered on LP/Lakeview
+  const map = L.map('map', { zoomControl: false }).setView([41.9395, -87.6535], 14);
+
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+    maxZoom: 19
+  }).addTo(map);
+
+  L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+  // Sample markers
+  const parcels = [
+    { lat: 41.9327, lng: -87.6587, score: 83, color: '#238636', label: '2847 N Racine' },
+    { lat: 41.9323, lng: -87.6523, score: 84, color: '#238636', label: '1423 W Diversey' },
+    { lat: 41.9397, lng: -87.6537, score: 81, color: '#238636', label: '3201 N Sheffield' },
+    { lat: 41.9400, lng: -87.6623, score: 76, color: '#238636', label: '2156 W Belmont' },
+    { lat: 41.9260, lng: -87.6600, score: 74, color: '#9e6a03', label: '1847 W Wrightwood' },
+    { lat: 41.9370, lng: -87.6495, score: 72, color: '#f0883e', label: '2934 N Halsted (Listed)' },
+    { lat: 41.9460, lng: -87.6512, score: 71, color: '#58a6ff', label: '3456 N Clark' },
+    { lat: 41.9230, lng: -87.6477, score: 69, color: '#238636', label: '2245 N Lincoln' },
+  ];
+
+  // Add some gray dots for "all others"
+  for (let i = 0; i < 60; i++) {
+    const lat = 41.92 + Math.random() * 0.035;
+    const lng = -87.67 + Math.random() * 0.035;
+    L.circleMarker([lat, lng], { radius: 2, color: '#484f58', fillColor: '#484f58', fillOpacity: 0.5, weight: 0 }).addTo(map);
+  }
+
+  // Purple consolidated markers
+  const consolidated = [
+    { lat: 41.9350, lng: -87.6570 },
+    { lat: 41.9280, lng: -87.6540 },
+    { lat: 41.9420, lng: -87.6590 },
+  ];
+  consolidated.forEach(p => {
+    L.circleMarker([p.lat, p.lng], { radius: 6, color: '#a855f7', fillColor: '#a855f7', fillOpacity: 0.7, weight: 2 }).addTo(map);
+  });
+
+  parcels.forEach(p => {
+    const marker = L.circleMarker([p.lat, p.lng], {
+      radius: 8,
+      color: p.color,
+      fillColor: p.color,
+      fillOpacity: 0.8,
+      weight: 2
+    }).addTo(map);
+    marker.bindTooltip(`${p.label} (${p.score})`, { direction: 'top', offset: [0, -10] });
+  });
+
+  // Highlight selected
+  L.circleMarker([41.9327, -87.6587], {
+    radius: 14,
+    color: '#f0f6fc',
+    fillColor: 'transparent',
+    fillOpacity: 0,
+    weight: 2,
+    dashArray: '4 4'
+  }).addTo(map);
+</script>
+
+</body>
+</html>

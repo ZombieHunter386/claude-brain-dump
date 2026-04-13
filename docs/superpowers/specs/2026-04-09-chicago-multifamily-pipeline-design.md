@@ -225,7 +225,7 @@ All parcels in the target geography are stored. The top-N threshold determines w
 ### Layout
 Three-column interface:
 - **Left:** Ranked list — shows top N parcels (default 20, adjustable) sorted by score. Score badge, key signal tags, outreach status per row. Ability to browse beyond top N. Batch "Draft Outreach" button at bottom. Stage filter pills (scored / outreach / responded / introduced). Collapsible filter panel (see below).
-- **Center:** Leaflet.js map (OpenStreetMap tiles, no API key). Color-coded pins: top-N (green), consolidated (purple), outreach sent (blue), all others (gray). Layer toggles for score tiers and outreach status.
+- **Center:** Leaflet.js map (OpenStreetMap/CARTO tiles, no API key). Color-coded pins: top-N (green), consolidated (purple), outreach sent (blue), listed (orange), all others (gray). Layer toggles for each pin category. "Listed" pin color is defined in the outreach spec.
 - **Right:** Detail panel for selected site — property facts (PIN, address, lot size, ward, building classification), zoning context (current zone class, what's allowed by-right vs. what would require rezoning, built FAR vs. max FAR), score breakdown showing which signals fired and by how much (config-driven, not hardcoded), estimated annual property taxes, hold duration, "Open in Google Maps" link, outreach action buttons (Draft / Skip / Notes). Score version stamp shown so you know if site was scored under old weights.
 
 **Feedback Report:** Lives as a section in the UI. Shows per-signal stats (response rates, handoff rates) from completed outreach waves and wave notes history. See Section 6.

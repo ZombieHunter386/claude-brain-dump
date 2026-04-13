@@ -84,6 +84,10 @@ Zillow changes their HTML periodically. When the scraper breaks:
 
 If `listing_status` = `listed`, the parcel is flagged in the UI and the outreach sequence is skipped entirely. If `listing_status` = `unknown`, the parcel proceeds normally but displays a warning badge in the UI prompting you to manually verify.
 
+### Map Layer
+
+Listed parcels appear as **orange pins** on the Leaflet map, as a 5th pin color alongside top-N (green), consolidated (purple), outreach sent (blue), and all others (gray). A layer toggle in the map controls allows showing/hiding listed parcels.
+
 ---
 
 ## Outreach Positioning
