@@ -444,15 +444,28 @@ EAV × Local Tax Rate = Estimated Annual Property Tax
 
 ---
 
-## Source 5: Contact Info Enrichment
+## Source 5: Contact Info Enrichment (REISkip)
 
-- **Provider:** TBD — to be decided during outreach spec brainstorm
+- **Provider:** REISkip — pay-per-match skip tracing, $0.15/successful match, no subscription
 - **Purpose:** Phone numbers and email addresses for property owners identified by the scoring system
 - **When it runs:** Enrichment stage only, for top-scored parcels ready for outreach
 - **Expected volume:** ~20-50 lookups per scoring run
-- **Expected cost:** ~$0.10-0.15/record if using BatchSkipTracing, but provider may change
+- **Expected cost:** ~$3-7.50 per wave at $0.15/match
+- **Access method:** Manual CSV upload/download (no API integration at this volume)
+- **Full detail:** See `2026-04-13-pipeline-outreach-design.md`
 
-This source will be fully specified in the outreach design spec.
+---
+
+## Source 6: Active Listing Detection (Zillow Scrape)
+
+- **Purpose:** Determine which top-scored parcels are currently listed for sale so they can be flagged and excluded from direct-to-owner outreach
+- **When it runs:** Enrichment stage only, alongside REISkip import, for top-scored parcels (~20-50 per wave)
+- **Access method:** Lightweight scrape of Zillow public property pages. Python `requests` + HTML parsing. One request per address, 3-5 second delays.
+- **Duration:** ~4 minutes for 50 addresses
+- **Cost:** Free
+- **Fields stored:** `listing_status` (`listed` / `not_listed` / `unknown`), `listing_check_date` on parcels table
+- **Fragility:** Zillow HTML changes will break the scraper periodically. Fails gracefully to `unknown`. Manual fallback is feasible at this volume (~10 minutes).
+- **Full detail:** See `2026-04-13-pipeline-outreach-design.md`
 
 ---
 
@@ -503,6 +516,7 @@ sources/
   cdp_cta_stations.py        # Source 2F — CTA Stations
   clerk_delinquent.py        # Source 3A — Delinquent Tax File
   sos_llc.py                 # Source 4 — IL SOS LLC Lookup (enrichment)
+  zillow_listing.py           # Source 6 — Zillow Active Listing Check (enrichment)
 ```
 
 **Standard module interface:**
@@ -572,6 +586,7 @@ SQLite handles this trivially. Full fetch takes ~5-10 minutes. Scoring runs in u
 | Cook County Clerk (delinquent taxes) | Bulk CSV download | N/A | Free |
 | Cook County Clerk (eq factor / rates) | Manual lookup | N/A | Free |
 | IL Secretary of State | Web scrape | ~1 req/3-5 sec (conservative) | Free |
-| Contact enrichment | TBD | TBD | TBD (see outreach spec) |
+| Contact enrichment (REISkip) | Manual CSV | N/A | ~$0.15/match (~$3-7.50/wave) |
+| Zillow listing check | Web scrape | ~1 req/3-5 sec (conservative) | Free |
 
-**Total pipeline cost per run: Free** (enrichment cost TBD in outreach spec)
+**Total pipeline cost per run: Free** (enrichment adds ~$3-7.50/wave for skip tracing)

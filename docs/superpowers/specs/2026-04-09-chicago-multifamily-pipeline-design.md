@@ -145,6 +145,7 @@ Outreach message templates stored as separate files (`config/templates/`) refere
 | Signals | tax_delinquent, delinquency_years, open_violations_count, oldest_violation_age_days, appeal_count, has_vacancy_report, years_since_last_permit |
 | Zoning | max_far, built_far, far_gap, allows_multifamily_by_right, tif_district, cta_nearest_station, cta_distance_ft |
 | Scoring | score, score_version, consolidation_group_id |
+| Listing | listing_status, listing_check_date |
 | Status | stage, first_seen_date, last_updated_date, last_fetched_date |
 
 Raw data from each source is also stored in source-specific tables (see data sources spec). The parcels table contains both raw fields and derived/calculated fields populated at score time.
@@ -174,7 +175,7 @@ All parcels in the target geography are stored. The top-N threshold determines w
 | phone | from skip trace |
 | email | from skip trace |
 | mailing_address | from assessor or skip trace |
-| role | `owner` / `broker` / `agent` |
+| role | `owner` / `registered_agent` / `broker` / `real_estate_agent` |
 | source | `assessor` / `skip_trace` |
 
 **`outreach` table** — one row per outreach attempt per site per channel
@@ -182,9 +183,11 @@ All parcels in the target geography are stored. The top-N threshold determines w
 | Column | Notes |
 |---|---|
 | outreach_id | auto-increment PK |
-| pin | FK to parcels (or consolidation_group_id) |
+| wave_id | FK to waves |
+| pin | FK to parcels (null if consolidation group) |
+| consolidation_group_id | FK to consolidation_groups (null if single parcel) |
 | contact_id | FK to contacts |
-| channel | `mail` / `email` / `phone` / `in_person` |
+| channel | `email` / `phone` / `mail_letter` / `mail_postcard` / `in_person` |
 | sent_date | when sent or attempted |
 | response_date | null until response received |
 | response_type | `interested` / `not_interested` / `no_response` / `referred_broker` |
@@ -234,43 +237,40 @@ Single unified score (0-100) blending development potential and motivation signa
 
 ## Section 5 — Outreach Draft & Approval Flow
 
-**Status:** Overview captured — needs dedicated brainstorm session for full spec (`YYYY-MM-DD-pipeline-outreach-design.md`)
+**Status:** Overview below — full detail in `2026-04-13-pipeline-outreach-design.md`
 
 ### Overview
-After you select sites from the ranked list, the system drafts personalized outreach messages for each site, you review and approve them, then they send automatically via the appropriate channel.
+After you select sites from the ranked list, the system drafts personalized outreach messages via Claude API (Haiku), you review and approve them in the UI, then they send via the appropriate channel. Messages follow five criteria: sound human, speak to the owner's interests (Dale Carnegie yes-yes framing), reference your local connection, include a personalized hook based on the parcel's strongest scoring signal, and ask for an in-person meeting.
 
 ### Channels
 | Channel | Automation | API | Notes |
 |---|---|---|---|
-| Physical mail | Automated | Lob API | Handwritten-style font, ~$1.20/letter |
-| Email | Automated | Gmail API | OAuth, sent from your Gmail account |
+| Email | Semi-automated (draft auto-generated, send requires approval) | Gmail via Claude connector | Plain text, sent from your personal Gmail |
 | Phone | Manual | — | UI surfaces the number and a suggested script |
-| In-person | Manual | — | UI surfaces address and talking points |
-| Broker route | Manual | — | If property is listed, flag in UI and pass listing info to developer partner. You don't contact the broker directly (license constraint). |
+| Physical letter | Semi-automated (draft auto-generated, send requires approval) | Lob API | Handwritten-style font on letter + envelope, ~$1.20/letter |
+| Postcard | Semi-automated (draft auto-generated, send requires approval) | Lob API | Standard 4x6, ~$0.50 |
+| In-person | Manual | — | UI surfaces address and talking points (ad hoc, not part of standard sequence) |
 
-### Outreach Sequence
-```
-Week 1  → Physical mail (letter)
-Week 3  → Follow-up mail or postcard
-Week 5  → Phone call (manual — UI prompts you)
-Week 6  → Email (if available)
-```
-Sequence is tracked per parcel in the `outreach` table. UI surfaces what's due. Exact cadence and strategy TBD in outreach brainstorm.
+Listed properties are flagged in the UI and skip the outreach sequence entirely. You pass listing info to your developer partner manually.
 
-### Draft & Approval Flow (high level)
+### Outreach Sequence (7 touches, 30 days)
+```
+Day 0   → Email (personalized, strongest signal as hook)
+Day 3   → Email follow-up (different angle)
+Day 7   → Phone call (manual — UI surfaces script)
+Day 14  → Physical letter via Lob (handwritten-style)
+Day 19  → Email follow-up (new hook)
+Day 24  → Postcard via Lob
+Day 30  → Final email (warm close)
+```
+Sequence is tracked per parcel in the `outreach` table. Any touch can be skipped if the required contact info is missing (e.g., no email → skip email touches, start at phone). Mailing address is always available from assessor records as the fallback channel. If the owner responds at any point, the sequence stops and the parcel moves to `responded`. If no response after Day 30, the parcel moves to `dead` unless manually overridden.
+
+### Draft & Approval Flow
 1. Select one or more sites in the ranked list
-2. Click "Draft Outreach" → system generates a personalized draft per site per channel using templates from `config/templates/`, merging in property-specific data (address, lot size, owner name, specific characteristics that scored well)
+2. Click "Draft Outreach" → Claude API (Haiku) generates personalized drafts per site per touch using prompt templates from `config/templates/`, injecting parcel-specific data (address, owner name, strongest scoring signals, hold duration, property details)
 3. Review each draft in the UI — edit inline if needed
-4. Approve → triggers send via Gmail API / Lob API
-5. Sent date logged in `outreach` table; stage updated to `outreach`
-
-### Open questions for dedicated session
-- Exact template language and tone
-- How much personalization per site (which fields get merged)
-- Broker route: when a property is listed, does the lead just get flagged for your developer partner, or do you still mail the owner directly?
-- Follow-up: same template or different tone on second touch?
-- Sequence scheduler: UI prompt or background check on app load?
-- Lob letter vs. postcard decision for follow-up touch
+4. Approve → triggers send via Gmail (Claude connector) or Lob API
+5. Sent date logged in `outreach` table; stage updated from `scored` to `outreach`
 
 ---
 
