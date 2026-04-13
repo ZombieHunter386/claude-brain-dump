@@ -1,7 +1,7 @@
 # Chicago Off-Market Multifamily Pipeline — System Design
 
 **Date:** 2026-04-09 (updated 2026-04-11)
-**Status:** Architecture, data model, Review UI, outreach overview, and feedback loop overview complete. Data sources spec complete. Scoring system defined (no separate spec needed). One subsystem spec still required before coding (outreach) — see Spec Suite table below.
+**Status:** All specs complete. Architecture, data model, Review UI, outreach overview, and feedback loop overview complete. Data sources spec complete. Scoring system defined (no separate spec needed). Outreach spec complete. Ready for implementation planning.
 
 ---
 
@@ -14,7 +14,7 @@ This system requires multiple spec files before it is ready to hand off for impl
 | `2026-04-09-chicago-multifamily-pipeline-design.md` | **This file** — complete | System architecture, pipeline stages, data model, UI layout, outreach flow, feedback loop |
 | `2026-04-11-pipeline-data-sources-design.md` | **Complete** | All data sources, API endpoints, field mappings, fetch architecture, historical analysis script, rate limits |
 | ~~`pipeline-scoring-design.md`~~ | **Not needed** — scoring system fully defined in master spec (Section 2) + data sources spec | Signals come from data sources; weights from historical analysis; scoring math is weighted sum with normalization |
-| `YYYY-MM-DD-pipeline-outreach-design.md` | Not started — needs brainstorm session | Message templates per channel (mail, email); sequence timing and scheduling logic; contact enrichment provider; outreach positioning; broker route workflow |
+| `2026-04-13-pipeline-outreach-design.md` | **Complete** | Contact enrichment (REISkip), messaging strategy (5 criteria, yes-yes framing, Claude API drafting), 7-touch 30-day sequence, Gmail/Lob integration, sequence scheduler UI |
 
 **Coding should not begin until all specs exist and are approved.**
 
@@ -305,16 +305,5 @@ Scoring system fully defined: signals come from data sources spec, initial weigh
 ### ~~Session: Data Sources~~ — COMPLETE
 **Produced:** `2026-04-11-pipeline-data-sources-design.md`
 
-### Session: Outreach Templates & Sequence
-**Produces:** `YYYY-MM-DD-pipeline-outreach-design.md`
-**Must answer:**
-- Contact enrichment provider selection (BatchSkipTracing or alternative)
-- Physical mail template: tone, length, what property-specific data gets merged in, Lob handwritten font selection
-- Email template: subject line strategy, body, signature
-- How personalization works: which fields from the parcel/contact record get inserted
-- Follow-up templates: are they different in tone from the first touch?
-- Broker route: when a property is listed, does the lead just get flagged for your developer partner, or do you still mail the owner directly?
-- Gmail API: OAuth setup, sent-from address, how to avoid spam filters
-- Lob API: account setup, address validation, return address, letter vs. postcard decision for follow-up
-- Sequence scheduler: how does the system know when to surface "week 3 follow-up ready" — is this a UI prompt or automated?
-- Outreach positioning: how to frame yourself as prospective buyer (license constraint)
+### ~~Session: Outreach Templates & Sequence~~ — COMPLETE
+**Produced:** `2026-04-13-pipeline-outreach-design.md`
