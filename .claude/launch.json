@@ -1,0 +1,18 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "ui-mockup",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "5050", "--directory", "mockup"],
+      "port": 5050
+    },
+    {
+      "name": "chicago-pipeline-webapp",
+      "runtimeExecutable": "/Users/hunterheyman/Claude/chicago-pipeline/.venv/bin/python",
+      "runtimeArgs": ["-m", "webapp", "--db", "/Users/hunterheyman/Claude/chicago-pipeline/data/smoke.db", "--port", "5051"],
+      "cwd": "/Users/hunterheyman/Claude/chicago-pipeline",
+      "port": 5051
+    }
+  ]
+}
