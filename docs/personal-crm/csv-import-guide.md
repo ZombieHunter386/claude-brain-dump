@@ -39,7 +39,7 @@ For each row in the CSV, Claude calls `notion-create-pages` with:
 - **Current Title** = Position field
 - **Company** = Company field
 - **Connection Detail** = "LinkedIn connection since [Connected On date]"
-- **Follow-up Frequency** = "Annually" (default — update key contacts after import)
+- **Follow-up Frequency** = not set (blank — set to "Annually" manually for close contacts: UMich classmates, Lab HS friends, past co-workers)
 
 ### What Claude skips
 - Rows where URL is empty
@@ -54,7 +54,7 @@ LinkedIn URLs can vary in format (e.g., trailing slashes, `https://www.linkedin.
 
 1. **Enrich key contacts** (Plan 2) — Run enrichment on your top 20–30 contacts to fill in:
    Industry, Professional Expertise, Personal Interests, Birthday
-2. **Update Follow-up Frequency** for contacts you want to stay close to (change from "Annually" to "Monthly" or "Quarterly")
+2. **Update Follow-up Frequency** for priority contacts — set "Annually" for UMich classmates (2021–2025), U of C Lab HS friends, and past co-workers; set "Quarterly" or "Monthly" for closest contacts
 3. **Fill in your Job Target Profile page** — required before running job search queries (Plan 5)
    - URL: https://www.notion.so/32788694d77c81c498e2cc5734a79d09
 

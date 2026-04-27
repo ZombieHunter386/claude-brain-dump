@@ -46,7 +46,8 @@ When the user sends a brain dump (voice or text):
    - **No match** → create a new top-level Thought (with nested Ideas/Tasks if enough detail was provided)
    - **Merge opportunity** (new Thought content significantly overlaps an existing standalone Thought) → offer to merge before writing: "This seems related to *[existing Thought]* — want me to combine them?"
 5. **Write** — use `mcp__notion__API-post-page`. Set Area on EVERY row created (Thought and all children). Set "Parent item" relation for all non-Thought entries.
-6. **Confirm** — tell user exactly what was saved and where.
+6. **Generate Tasks** — after writing every Thought or Idea, always generate 2-3 Tasks under it. See Task Generation rules below.
+7. **Confirm** — tell user exactly what was saved and where, including tasks created.
 
 ## Creating an Entry — Property Format
 
@@ -56,7 +57,7 @@ When the user sends a brain dump (voice or text):
   "properties": {
     "Name": { "title": [{ "text": { "content": "🧠 Your title here" } }] },
     "Level": { "select": { "name": "Thought" } },
-    "Area": { "select": { "name": "Work" } },
+    "Area": { "multi_select": [{ "name": "Work" }] },
     "Status": { "select": { "name": "Captured" } },
     "Summary": { "rich_text": [{ "text": { "content": "2-3 sentence recap." } }] },
     "Details": { "rich_text": [{ "text": { "content": "- Intent: ...\n- Constraints: ...\n- Requirements: ..." } }] },
@@ -76,12 +77,42 @@ Every entry needs all of these:
 |---|---|
 | Name | Claude-generated 1-line summary with emoji prefix (🧠 💡 ✅ ↳) |
 | Level | Thought / Idea / Task / Sub-task |
-| Area | Work / Personal / Compass Pro Bono — set on ALL levels |
+| Area | multi_select — inherit from parent on all child entries |
 | Status | Always "Captured" on creation |
 | Summary | 2-3 sentence recap |
 | Details | 3-5 bullet points: intent (what and why), constraints, specific requirements |
 | Date Captured | Today's date |
 | Parent item | Set for all non-Thought entries — relation to parent page ID |
+
+## Task Generation
+
+**Always generate 2-3 Tasks under every new Thought or Idea.** Do not wait to be asked. Tasks make entries actionable immediately.
+
+### Rules
+
+- **Derive tasks from the Details "Next step" and the Summary** — read both fields and extract concrete, specific actions
+- **Each task should be completable in a single sitting** — not vague goals, but specific doable actions
+- **Create Tasks in parallel with or immediately after the parent Thought/Idea** — get the parent ID first, then post tasks using "Parent item" relation
+- **Task names start with ✅** and describe the action clearly (e.g., "✅ Export LinkedIn connections as CSV")
+- **Task Summary**: 1-2 sentences describing the outcome of completing this task
+- **Task Details**: 3-5 bullet points with step-by-step how-to, referencing specific tools, sources, or approaches from the parent entry
+- **Task Area**: inherit from the parent entry (same multi_select values)
+
+### Good task patterns (drawn from entry Details)
+
+| Parent Details field | → Task to create |
+|---|---|
+| "Next step: Research X" | ✅ Research X — with specific sources listed in Details |
+| "Potential tool: Y or Z" | ✅ Evaluate Y vs Z — with decision criteria in Details |
+| "Data sources: A, B, C" | ✅ Pull and assess data from A — with steps to access it |
+| "Constraint: Check if X exists" | ✅ Search for existing X tools — with specific places to look |
+| "Approach: Do X then Y" | ✅ Do X, then ✅ Do Y as separate sequential tasks |
+
+### What NOT to do
+
+- Don't create tasks that are just restatements of the parent Idea name
+- Don't create vague tasks like "✅ Work on this" or "✅ Think about next steps"
+- Don't skip task generation because the entry seems high-level — every entry has at least one concrete first action
 
 ## Status Rules
 

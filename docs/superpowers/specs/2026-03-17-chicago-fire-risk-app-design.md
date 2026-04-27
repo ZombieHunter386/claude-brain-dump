@@ -7,11 +7,27 @@
 
 ## Purpose
 
-A public-facing web app that visualizes Chicago fire incident data to make a data-driven case for allowing single-stair residential buildings. The primary audience is Chicago aldermen and the public. The core arguments are:
+A public-facing web app that visualizes Chicago fire incident data with two linked goals:
 
+1. **Advocacy:** Make a data-driven case to aldermen for allowing single-stair residential buildings in Chicago
+2. **Policy design:** Use the data to actively shape and refine the single-stair ordinance proposal — the ordinance should be backed by and adjusted to what the data shows, not the other way around
+
+The data analysis may change what the ordinance proposes. For example, if data shows worse outcomes above a certain building height, that informs a height cap in the ordinance. If outcomes correlate with stair width, that informs a minimum stair dimension requirement. The tool surfaces evidence; the ordinance follows.
+
+### Advocacy Arguments
 1. Buildings with sprinklers have dramatically better fire outcomes — sprinkler presence matters far more than stairwell count
 2. New buildings with sprinklers (single-stair) are safer than old buildings without sprinklers (two-stair)
 3. Fire deaths are far fewer than deaths from traffic and housing unaffordability/homelessness — we are over-regulating fire safety at the cost of housing
+
+### Ordinance Design Questions the Data Should Answer
+These are open questions — the app surfaces the evidence, and the ordinance proposal is adjusted accordingly:
+
+- **Building height cap:** At what height do single-exit buildings show worse outcomes? (NFPA data by building height; CFD data post-FOIA). European single-stair codes typically cap at 4–7 stories — does Chicago data support a different number?
+- **Stair width / egress capacity:** Do incidents with higher casualties correlate with narrower egress paths or higher occupant load per exit? If so, the ordinance should mandate wider minimum stair widths than current code as a tradeoff for single-stair allowance. (NFPA egress research; ICC stair width standards as baseline.)
+- **Sprinkler mandate:** Does data confirm sprinklers are the dominant safety variable? If yes, sprinklers should be a non-negotiable condition in the ordinance — not optional.
+- **Construction type requirement:** Do outcomes differ significantly by construction type (wood frame vs. masonry vs. fire-resistive)? If so, the ordinance may need to restrict single-stair allowance to certain construction types.
+- **Units per floor / occupant load:** Is there a per-floor occupancy threshold above which single-exit egress becomes a meaningful risk factor? Data may suggest a units-per-floor cap.
+- **Compartmentalization:** Do fire doors and floor-to-floor separation materially affect outcomes in the data? If yes, mandate compartmentalization as a condition.
 
 ---
 
@@ -45,6 +61,14 @@ A public-facing web app that visualizes Chicago fire incident data to make a dat
 - **Fire fatalities:** CFD Annual Report (published by Chicago Fire Dept, available on city website)
 - All three figures must be from the same year for a valid comparison. Use the most recent year where all three are available.
 - Used for the Hero stat cards and Section 6 comparative chart
+
+### Egress & Building Code Research — Static References
+These inform the ordinance design questions, not the map/charts:
+- **NFPA 101 (Life Safety Code):** Stair width minimums, occupant load per exit, single-exit building height limits
+- **ICC / IBC stair requirements:** Baseline stair dimensions the ordinance would exceed as a tradeoff for single-stair allowance
+- **NFPA fire outcome data by building height:** Used to determine whether a height cap is data-justified
+- **European single-stair precedents:** UK (7 stories), Scandinavia (variable) — used to benchmark proposed Chicago height cap against jurisdictions with real-world data
+- These are research references, not fetched data. Findings are baked into the ordinance recommendations card in Section 7.
 
 ### FOIA Requests (Future Enrichment — not blocking v1)
 - CFD sprinkler permit database by address — will replace NFPA data with Chicago-specific data when available
@@ -98,10 +122,24 @@ Single scrollable page with sticky navigation. Narrative arc builds the advocacy
 - **Note:** Hero (Section 1) and this section both show comparative deaths; Hero shows the numbers first as a hook, Section 6 shows the full chart as the climactic argument. This is intentional — not duplication.
 - **Purpose:** Closes the argument — we're trading many lives lost to housing unaffordability to prevent far fewer fire deaths
 
-### Section 7: The Ask
-- Short advocacy copy (3-5 sentences)
-- CTA button: contact your alderman (link to city alderman directory)
+### Section 7: What the Data Says — Ordinance Recommendations
+This section transitions from visualization to policy. It presents the data-backed ordinance requirements and explains why each condition exists.
+
+**Structure:**
+- Headline: "What a Safe Single-Stair Ordinance Looks Like"
+- A table or card set listing each proposed ordinance condition with a one-line data justification:
+  | Condition | Why the data supports it |
+  |---|---|
+  | Sprinklers required | Reduces fire deaths by X% — the single largest safety variable |
+  | Max X stories | Outcomes worsen above X floors in single-exit buildings |
+  | Min stair width XX inches | Wider egress reduces casualty rate in multi-floor evacuations |
+  | Construction type: fire-resistive or masonry only | Wood-frame buildings show Y% worse outcomes |
+  | Max X units per floor | Egress capacity per exit becomes a risk factor above X occupants |
+- Each condition links back to the section of the app that shows the supporting data
+- CTA: Contact your alderman (link to Chicago alderman directory)
 - Optional: link to Strong Towns Chicago resources
+
+**Note:** Specific numbers in the table (height cap, stair width, units per floor) are placeholders to be filled in once NFPA data and FOIA data are fully analyzed. If data doesn't support a specific threshold for a condition, that condition is omitted rather than fabricated.
 
 ---
 
