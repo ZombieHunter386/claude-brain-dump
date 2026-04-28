@@ -10,8 +10,8 @@
     {
       "name": "chicago-pipeline-webapp",
       "runtimeExecutable": "/Users/hunterheyman/Claude/chicago-pipeline/.venv/bin/python",
-      "runtimeArgs": ["-m", "webapp", "--db", "/Users/hunterheyman/Claude/chicago-pipeline/data/smoke.db", "--port", "5051"],
-      "cwd": "/Users/hunterheyman/Claude/chicago-pipeline",
+      "runtimeArgs": ["-m", "webapp", "--db", "data/smoke.db", "--port", "5051"],
+      "cwd": "chicago-pipeline",
       "port": 5051
     }
   ]
